@@ -7,12 +7,13 @@ import android.os.Bundle
 import android.webkit.WebView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -26,9 +27,7 @@ import com.waju.factory.app.generator.platform.webview.MiniAppWebViewFactory
 import com.waju.factory.app.generator.ui.ViewerScreen
 import com.waju.factory.app.generator.ui.GridViewScreen
 import com.waju.factory.app.generator.ui.NewAppDialogScreen
-import com.waju.factory.app.generator.ui.ViewerScreen
 import com.waju.factory.app.generator.ui.theme.AppGeneratorTheme
-import com.waju.factory.app.generator.ui.theme.darkNavy
 import com.waju.factory.app.generator.viewModel.MainViewModel
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -62,6 +61,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 背景が明るいライトテーマに合わせて、ステータスバーの文字を暗くする
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            )
+        )
         sharedPreferences = getSharedPreferences("MiniAppData", MODE_PRIVATE)
         WebView.setWebContentsDebuggingEnabled(true)
 
@@ -69,7 +76,7 @@ class MainActivity : ComponentActivity() {
             AppGeneratorTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = darkNavy
+                    color = Color.White
                 ) {
                     val apps by viewModel.miniApps.collectAsState()
                     val selectedAppId by viewModel.selectedAppId.collectAsState()
@@ -94,10 +101,8 @@ class MainActivity : ComponentActivity() {
                                 htmlVirtualPath = session.currentHtmlVirtualPath,
                                 currentPageVersion = session.pageLoadVersion,
                                 logs = session.debugMessages,
-                                showDebug = session.showDebugPanel,
                                 currentHtmlContent = session.currentHtmlContent,
                                 onBack = { viewModel.closeEditor() },
-                                onToggleDebug = { session.toggleDebugPanel() },
                                 onSelectAssetFolder = { triggerSelectAssetFolder() },
                                 onSave = { updated -> viewModel.updateApp(updated) },
                                 createWebView = webViewFactory::createWebView,

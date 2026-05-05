@@ -2,7 +2,6 @@ package com.waju.factory.app.generator.viewModel
 
 import android.app.Application
 import android.content.Context
-import android.webkit.WebView
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import com.google.gson.Gson
@@ -11,12 +10,22 @@ import com.waju.factory.app.generator.domain.model.MiniApp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.io.IOException
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
+import androidx.core.content.edit
 
 class MainViewModel(
     application: Application,
     private val savedStateHandle: SavedStateHandle
 ) : AndroidViewModel(application) {
+
+    companion object {
+        private const val SAMPLE_TODO_ID = "sample-todo"
+        private const val SAMPLE_TODO_TITLE = "TODO"
+        private const val SAMPLE_TODO_ASSET_PATH = "samples/todo/index.html"
+    }
 
     private val sharedPreferences = application.getSharedPreferences("MiniAppData", Context.MODE_PRIVATE)
     private val gson = Gson()
@@ -49,16 +58,50 @@ class MainViewModel(
         try {
             val json = sharedPreferences.getString("mini_apps_list", "[]") ?: "[]"
             val type = object : TypeToken<List<MiniApp>>() {}.type
-            _miniApps.value = gson.fromJson(json, type)
-        } catch (e: Exception) {
-            _miniApps.value = emptyList()
+            val loadedApps = gson.fromJson<List<MiniApp>>(json, type).orEmpty()
+            val normalizedApps = ensureSampleAppExists(loadedApps)
+            _miniApps.value = normalizedApps
+            if (normalizedApps.size != loadedApps.size) {
+                saveMiniApps(normalizedApps)
+            }
+        } catch (_: Exception) {
+            val fallbackApps = ensureSampleAppExists(emptyList())
+            _miniApps.value = fallbackApps
+            saveMiniApps(fallbackApps)
+        }
+    }
+
+    private fun ensureSampleAppExists(apps: List<MiniApp>): List<MiniApp> {
+        if (apps.any { it.id == SAMPLE_TODO_ID }) {
+            return apps
+        }
+
+        val sampleHtml = readSampleHtml() ?: return apps
+        val sampleApp = MiniApp(
+            id = SAMPLE_TODO_ID,
+            title = SAMPLE_TODO_TITLE,
+            htmlContent = sampleHtml,
+            timestamp = LocalDate
+                .of(2026, 5, 5)
+                .atStartOfDay(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        )
+        return listOf(sampleApp) + apps
+    }
+
+    private fun readSampleHtml(): String? {
+        return try {
+            getApplication<Application>().assets.open(SAMPLE_TODO_ASSET_PATH).bufferedReader().use { it.readText() }
+        } catch (_: IOException) {
+            null
         }
     }
 
     private fun saveMiniApps(apps: List<MiniApp>) {
         try {
             val json = gson.toJson(apps)
-            sharedPreferences.edit().putString("mini_apps_list", json).apply()
+            sharedPreferences.edit { putString("mini_apps_list", json) }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -96,6 +139,9 @@ class MainViewModel(
     }
 
     fun deleteApp(app: MiniApp) {
+        if (app.id == SAMPLE_TODO_ID) {
+            return
+        }
         val updatedList = _miniApps.value.filter { it.id != app.id }
         _miniApps.value = updatedList
         saveMiniApps(updatedList)

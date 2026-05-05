@@ -3,7 +3,6 @@ package com.waju.factory.app.generator.platform.document
 import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.provider.DocumentsContract
 
 class DocumentPickerHelper(
@@ -22,9 +21,7 @@ class DocumentPickerHelper(
         return Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                initialUri?.let { putExtra(DocumentsContract.EXTRA_INITIAL_URI, it) }
-            }
+            initialUri?.let { putExtra(DocumentsContract.EXTRA_INITIAL_URI, it) }
         }
     }
 
