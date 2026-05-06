@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TODOアプリ</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <style>
+        body { 
+            font-family: 'Inter', 'Noto Sans JP', sans-serif; 
+            background-color: #f1f5f9; /* Tailwind slate-100 */
+            -webkit-tap-highlight-color: transparent; 
+        }
+
+        /* カスタムスクロールバー（モダンな細いスタイル） */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 20px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background-color: #94a3b8;
+        }
+
+        /* Vueマウント前のチラつき防止 */
+        [v-cloak] {
+            display: none;
+        }
+        
+        /* 削除ボタンの表示制御 (PCはホバー時、モバイルは常時表示) */
+        @media (hover: hover) {
+            .todo-item .delete-btn {
+                opacity: 0;
+            }
+            .todo-item:hover .delete-btn {
+                opacity: 1;
+            }
+        }
+        @media (hover: none) {
+            .todo-item .delete-btn {
+                opacity: 1; 
+            }
+        }
+    </style>
+</head>
+<body class="sm:py-8 sm:px-4 flex items-center justify-center min-h-screen">
+    <!-- スマホでは全画面、PCではカード型になるレイアウト -->
+    <div id="app" v-cloak class="w-full max-w-md min-h-screen sm:h-[85vh] sm:max-h-[850px] bg-white sm:rounded-[2.5rem] flex flex-col sm:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] relative overflow-y-auto sm:overflow-hidden">
+        
+        <!-- ヘッダー -->
+        <header class="px-8 pt-12 pb-6 bg-white shrink-0 z-10 relative border-b border-slate-50">
+            <div class="flex justify-between items-end">
+                <div>
+                    <h1 class="text-3xl font-bold text-slate-800 tracking-tight">TODOリスト</h1>
+                    <p class="text-sm font-medium text-slate-400 mt-1">
+                        {{ todos.filter(t => !t.done).length }} tasks remaining
+                    </p>
+                </div>
+                <div class="h-12 w-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500 shadow-sm border border-indigo-100/50">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                    </svg>
+                </div>
+            </div>
+        </header>
+
+        <!-- 入力フォーム (ヘッダー直下) -->
+        <div class="px-6 py-4 bg-slate-50/30 border-b border-slate-100 shrink-0 z-10 relative">
+            <form @submit.prevent="addTodo" class="bg-white p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-100 flex flex-col gap-2.5 transition-all focus-within:border-indigo-300 focus-within:shadow-md focus-within:ring-4 focus-within:ring-indigo-500/10">
+                <input type="text" v-model="newTodoTitle" placeholder="タスクのタイトル..." 
+                       class="w-full text-slate-800 placeholder-slate-400 font-medium outline-none bg-transparent">
+                <div class="h-px w-full bg-slate-50"></div>
+                <textarea v-model="newTodoDescription" placeholder="詳細を追加 (任意)" rows="2"
+                          class="w-full text-slate-600 placeholder-slate-400 text-sm outline-none bg-transparent resize-none custom-scrollbar"></textarea>
+                <div class="flex justify-end pt-1">
+                    <button type="submit" :disabled="!newTodoTitle.trim()"
+                            class="px-5 py-2 flex items-center gap-1.5 bg-indigo-500 text-white text-sm font-medium rounded-xl hover:bg-indigo-600 disabled:bg-slate-200 disabled:text-slate-400 transition-all shadow-sm hover:shadow focus:outline-none">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                        追加
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- リストエリア -->
+        <main class="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar relative z-0">
+            <!-- 空の状態 (Empty State) -->
+            <div v-if="todos.length === 0" class="h-full flex flex-col items-center justify-center text-center px-4">
+                <div class="bg-slate-50 w-32 h-32 rounded-full flex items-center justify-center mb-6">
+                    <svg class="w-16 h-16 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-slate-700 mb-2">タスクがありません</h3>
+                <p class="text-slate-500 text-sm">上の入力欄から新しいタスクを追加して<br>一日を始めましょう！</p>
+            </div>
+
+            <!-- TODOリスト -->
+            <ul v-else class="space-y-3 pb-4">
+                <li v-for="(todo, index) in todos" :key="index" 
+                    class="todo-item group bg-white border border-slate-100 hover:border-slate-200 hover:shadow-sm rounded-2xl p-4 flex items-center justify-between transition-all duration-300 ease-out"
+                    :class="{ 'bg-slate-50/50 border-transparent': todo.done }">
+                    
+                    <label class="relative flex items-start cursor-pointer flex-1 min-w-0 pr-4">
+                        <!-- CSSの peer クラスを使って状態管理 -->
+                        <input type="checkbox" v-model="todo.done" @change="saveTodos" class="peer sr-only">
+                        <div class="mt-0.5 w-6 h-6 rounded-full border-2 border-slate-300 bg-white peer-checked:bg-indigo-500 peer-checked:border-indigo-500 flex items-center justify-center shrink-0 transition-all duration-200 shadow-sm">
+                            <svg class="w-3.5 h-3.5 text-white scale-0 peer-checked:scale-100 transition-transform duration-300 ease-out delay-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4 flex flex-col flex-1 min-w-0">
+                            <span class="text-[15px] font-medium text-slate-700 break-words peer-checked:text-slate-400 peer-checked:line-through transition-all duration-300">
+                                {{ todo.title }}
+                            </span>
+                            <span v-if="todo.description" class="text-sm text-slate-500 mt-1 break-words whitespace-pre-wrap peer-checked:text-slate-400/60 transition-all duration-300">
+                                {{ todo.description }}
+                            </span>
+                        </div>
+                    </label>
+
+                    <button @click="deleteTodo(index)" class="delete-btn shrink-0 text-slate-300 hover:text-red-500 p-2 rounded-xl hover:bg-red-50 focus:outline-none focus:text-red-500 transition-colors duration-200 self-center" aria-label="削除">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </li>
+            </ul>
+        </main>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, watch } = Vue;
+
+        const app = createApp({
+            setup() {
+                const todos = ref([]);
+                const newTodoTitle = ref('');
+                const newTodoDescription = ref('');
+                const STORAGE_KEY = 'miniapp_todo_list';
+
+                // ネイティブ連携のラッパー
+                const saveToNative = (data) => {
+                    const jsonString = JSON.stringify(data);
+                    if (window.AndroidBridge) {
+                        window.AndroidBridge.saveData(STORAGE_KEY, jsonString);
+                    } else {
+                        localStorage.setItem(STORAGE_KEY, jsonString); // PC等でのテスト用
+                    }
+                };
+
+                const loadFromNative = () => {
+                    let savedData = null;
+                    if (window.AndroidBridge) {
+                        savedData = window.AndroidBridge.loadData(STORAGE_KEY);
+                    } else {
+                        savedData = localStorage.getItem(STORAGE_KEY);
+                    }
+                    
+                    if (savedData) {
+                        try {
+                            const parsed = JSON.parse(savedData);
+                            // 過去のデータ構造（textのみ）との互換性を保つための変換
+                            if (Array.isArray(parsed)) {
+                                return parsed.map(item => ({
+                                    title: item.title || item.text || '',
+                                    description: item.description || '',
+                                    done: !!item.done
+                                }));
+                            }
+                        } catch (e) {
+                            console.error("データのパースに失敗しました", e);
+                            return [];
+                        }
+                    }
+                    return [];
+                };
+
+                const addTodo = () => {
+                    const title = newTodoTitle.value.trim();
+                    const description = newTodoDescription.value.trim();
+                    if (title) {
+                        todos.value.push({ title, description, done: false });
+                        newTodoTitle.value = '';
+                        newTodoDescription.value = '';
+                        saveTodos();
+                        if (window.AndroidBridge) window.AndroidBridge.showToast("タスクを追加しました");
+                    }
+                };
+
+                const deleteTodo = (index) => {
+                    todos.value.splice(index, 1);
+                    saveTodos();
+                };
+
+                const saveTodos = () => {
+                    saveToNative(todos.value);
+                };
+
+                onMounted(() => {
+                    // 起動時に保存されたデータを読み込む
+                    todos.value = loadFromNative();
+                });
+
+                return { todos, newTodoTitle, newTodoDescription, addTodo, deleteTodo, saveTodos }
+            }
+        });
+
+        app.mount('#app');
+    </script>
+</body>
+</html>

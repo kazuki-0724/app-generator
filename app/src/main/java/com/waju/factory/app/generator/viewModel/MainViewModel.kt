@@ -21,10 +21,11 @@ class MainViewModel(
     private val savedStateHandle: SavedStateHandle
 ) : AndroidViewModel(application) {
 
-    companion object {
-        private const val SAMPLE_TODO_ID = "sample-todo"
-        private const val SAMPLE_TODO_TITLE = "TODO"
-        private const val SAMPLE_TODO_ASSET_PATH = "samples/todo/index.html"
+    enum class SampleApp(val id: String, val title: String, val indexPath: String) {
+        TODO("sample-todo", "TODO", "samples/todo/index.html"),
+        CALCULATOR("sample-calculator", "Calculator", "samples/calculator/index.html"),
+        QR("sample-qr", "QR Reader", "samples/qr/index.html"),
+        CANVAS("sample-canvas", "Canvas", "samples/canvas/index.html"),
     }
 
     private val sharedPreferences = application.getSharedPreferences("MiniAppData", Context.MODE_PRIVATE)
@@ -72,27 +73,36 @@ class MainViewModel(
     }
 
     private fun ensureSampleAppExists(apps: List<MiniApp>): List<MiniApp> {
-        if (apps.any { it.id == SAMPLE_TODO_ID }) {
+        val existingIds = apps.map { it.id }.toSet()
+        // 追加すべきサンプルがひとつもなければそのまま返す
+        if (SampleApp.entries.all { it.id in existingIds }) {
             return apps
         }
 
-        val sampleHtml = readSampleHtml() ?: return apps
-        val sampleApp = MiniApp(
-            id = SAMPLE_TODO_ID,
-            title = SAMPLE_TODO_TITLE,
-            htmlContent = sampleHtml,
-            timestamp = LocalDate
-                .of(2026, 5, 5)
-                .atStartOfDay(ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli()
-        )
-        return listOf(sampleApp) + apps
+        val sampleTimestamp = LocalDate
+            .of(2026, 5, 5)
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+
+        val newSamples = SampleApp.entries
+            .filter { it.id !in existingIds }          // 未追加のものだけ
+            .mapNotNull { sample ->
+                val html = readSampleHtml(sample.indexPath) ?: return@mapNotNull null  // ファイルがなければスキップ
+                MiniApp(
+                    id = sample.id,
+                    title = sample.title,
+                    htmlContent = html,
+                    timestamp = sampleTimestamp,
+                )
+            }
+
+        return newSamples + apps
     }
 
-    private fun readSampleHtml(): String? {
+    private fun readSampleHtml(indexPath: String): String? {
         return try {
-            getApplication<Application>().assets.open(SAMPLE_TODO_ASSET_PATH).bufferedReader().use { it.readText() }
+            getApplication<Application>().assets.open(indexPath).bufferedReader().use { it.readText() }
         } catch (_: IOException) {
             null
         }
@@ -139,7 +149,7 @@ class MainViewModel(
     }
 
     fun deleteApp(app: MiniApp) {
-        if (app.id == SAMPLE_TODO_ID) {
+        if (SampleApp.entries.toTypedArray().any { it.id == app.id }) {
             return
         }
         val updatedList = _miniApps.value.filter { it.id != app.id }

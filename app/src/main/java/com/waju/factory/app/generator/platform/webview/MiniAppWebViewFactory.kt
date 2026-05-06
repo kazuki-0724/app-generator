@@ -1,11 +1,14 @@
 package com.waju.factory.app.generator.platform.webview
 
+import android.annotation.SuppressLint
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.MimeTypeMap
+import android.webkit.PermissionRequest
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -25,8 +28,13 @@ class MiniAppWebViewFactory(
     private val getCurrentHtmlContent: () -> String,
     private val getImportedSiteTreeUri: () -> Uri?,
     private val onDebugLog: (String) -> Unit,
-    private val nativeBridgeProvider: () -> Any
+    private val nativeBridgeProvider: () -> Any,
+    private val onShowFileChooserDelegate: ((
+        filePathCallback: ValueCallback<Array<Uri>>,
+        fileChooserParams: WebChromeClient.FileChooserParams
+    ) -> Boolean)? = null
 ) {
+    @SuppressLint("JavascriptInterface")
     fun createWebView(context: Context, htmlVirtualPath: String): WebView {
         return WebView(context).apply {
             settings.javaScriptEnabled = true
@@ -76,6 +84,36 @@ class MiniAppWebViewFactory(
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
                     onDebugLog("Console: ${consoleMessage.message()}")
                     return true
+                }
+
+                override fun onShowFileChooser(
+                    webView: WebView?,
+                    filePathCallback: ValueCallback<Array<Uri>>?,
+                    fileChooserParams: FileChooserParams?
+                ): Boolean {
+                    // デリゲートが設定されていれば Activity 側に処理を任せる
+                    if (filePathCallback != null && fileChooserParams != null && onShowFileChooserDelegate != null) {
+                        return onShowFileChooserDelegate.invoke(filePathCallback, fileChooserParams)
+                    }
+                    return super.onShowFileChooser(webView, filePathCallback, fileChooserParams)
+                }
+
+                override fun onPermissionRequest(request: PermissionRequest?) {
+                    // 要求されたリソースの中に「カメラ（VIDEO_CAPTURE）」が含まれているかチェック
+                    val hasCameraRequest = request?.resources?.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE) == true
+
+                    if (hasCameraRequest) {
+                        // 本来はここでAndroidネイティブ側のCAMERA権限が許可されているか(checkSelfPermission)を
+                        // 確認するのが安全ですが、手っ取り早くWebViewに許可を出す場合は以下を実行します。
+                        request?.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+                    } else {
+                        super.onPermissionRequest(request)
+                    }
+                }
+
+                // 【追加】権限要求がキャンセルされたときの処理（念のため）
+                override fun onPermissionRequestCanceled(request: PermissionRequest?) {
+                    super.onPermissionRequestCanceled(request)
                 }
             }
 

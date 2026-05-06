@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR & バーコードスキャナー</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Html5-Qrcode library -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- Phosphor Icons for UI -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* html5-qrcodeが自動生成するUIのスタイルを少し調整 */
+        #reader button {
+            background-color: #3b82f6; /* Tailwind blue-500 */
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            border: none;
+            cursor: pointer;
+            margin: 0.25rem;
+            font-size: 0.875rem;
+            transition: background-color 0.2s;
+        }
+        #reader button:hover {
+            background-color: #2563eb; /* Tailwind blue-600 */
+        }
+        #reader select {
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            border: 1px solid #d1d5db;
+            margin-bottom: 1rem;
+            width: 100%;
+        }
+        #reader a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+        #reader__dashboard_section_csr span {
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800 font-sans pb-10">
+
+    <!-- ヘッダー -->
+    <header class="bg-blue-600 text-white shadow-md py-4 px-6 mb-6">
+        <div class="max-w-2xl mx-auto flex items-center justify-center gap-2">
+            <i class="ph ph-scan text-2xl"></i>
+            <h1 class="text-xl font-bold tracking-wider">Web Scanner</h1>
+        </div>
+    </header>
+
+    <main class="max-w-md mx-auto px-4 w-full">
+        <!-- スキャナーエリア -->
+        <div class="bg-white rounded-2xl shadow-lg p-4 mb-6">
+            <div id="reader" class="w-full overflow-hidden rounded-xl"></div>
+        </div>
+
+        <!-- 読み取り結果エリア (初期状態は非表示) -->
+        <div id="result-card" class="bg-white rounded-2xl shadow-lg p-5 hidden transition-all duration-300 transform translate-y-0">
+            <div class="flex items-center gap-2 mb-3 text-green-600">
+                <i class="ph-fill ph-check-circle text-xl"></i>
+                <h2 class="text-lg font-bold">読み取り成功</h2>
+            </div>
+            
+            <div class="bg-gray-100 p-4 rounded-xl mb-4">
+                <p id="scanned-text" class="text-gray-800 font-mono break-all text-sm"></p>
+            </div>
+
+            <div class="flex gap-3">
+                <button id="copy-btn" class="flex-1 flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-medium transition-colors">
+                    <i class="ph ph-copy text-lg"></i>
+                    <span>コピー</span>
+                </button>
+                
+                <a id="link-btn" href="#" target="_blank" class="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-medium transition-colors hidden">
+                    <i class="ph ph-link text-lg"></i>
+                    <span>リンクを開く</span>
+                </a>
+            </div>
+            
+            <!-- コピー完了メッセージ -->
+            <p id="copy-msg" class="text-sm text-green-600 text-center mt-3 hidden animate-pulse">クリップボードにコピーしました！</p>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const resultCard = document.getElementById('result-card');
+            const scannedTextEl = document.getElementById('scanned-text');
+            const copyBtn = document.getElementById('copy-btn');
+            const linkBtn = document.getElementById('link-btn');
+            const copyMsg = document.getElementById('copy-msg');
+
+            let lastScannedText = "";
+
+            // URLかどうかを判定する関数
+            const isValidUrl = (string) => {
+                try {
+                    new URL(string);
+                    return true;
+                } catch (_) {
+                    return false;  
+                }
+            };
+
+            // スキャン成功時のコールバック
+            const onScanSuccess = (decodedText, decodedResult) => {
+                // 同じコードを連続で読み取った場合の重複処理を防ぐ
+                if (decodedText !== lastScannedText) {
+                    lastScannedText = decodedText;
+
+                    // 結果を画面にセット
+                    scannedTextEl.textContent = decodedText;
+                    
+                    // URLの場合はリンクボタンを表示
+                    if (isValidUrl(decodedText)) {
+                        linkBtn.href = decodedText;
+                        linkBtn.classList.remove('hidden');
+                    } else {
+                        linkBtn.classList.add('hidden');
+                    }
+
+                    // 結果カードを表示
+                    resultCard.classList.remove('hidden');
+                    
+                    // 音を鳴らすなどの視覚/聴覚フィードバックを入れるとより良くなります
+                    if (navigator.vibrate) {
+                        navigator.vibrate(200); // スマホを振動させる
+                    }
+                }
+            };
+
+            // スキャン継続中・失敗時のコールバック（基本は無視でOK）
+            const onScanFailure = (error) => {
+                // console.warn(`Code scan error = ${error}`);
+            };
+
+            // スキャナーの初期化設定
+            // fps: スキャンの頻度（毎秒何回画像をチェックするか）
+            // qrbox: 読み取り枠のサイズ設定。カメラ映像に対する割合やピクセルで指定可能
+            let html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader",
+                { 
+                    fps: 10, 
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0, // カメラを正方形に近い比率で要求
+                    rememberLastUsedCamera: true
+                },
+                /* verbose= */ false
+            );
+            
+            // スキャナーの描画と開始
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+
+
+            // コピーボタンの処理
+            copyBtn.addEventListener('click', () => {
+                if (lastScannedText) {
+                    // 最新のAPIが使えないiframe内などを考慮したレガシーフォールバックを含むコピー処理
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(lastScannedText).then(() => {
+                            showCopyMessage();
+                        });
+                    } else {
+                        // 代替手段 (document.execCommand)
+                        const textArea = document.createElement("textarea");
+                        textArea.value = lastScannedText;
+                        // 画面外に配置
+                        textArea.style.position = "absolute";
+                        textArea.style.left = "-999999px";
+                        document.body.prepend(textArea);
+                        textArea.select();
+                        try {
+                            document.execCommand('copy');
+                            showCopyMessage();
+                        } catch (error) {
+                            console.error(error);
+                            alert("コピーに失敗しました");
+                        } finally {
+                            textArea.remove();
+                        }
+                    }
+                }
+            });
+
+            // コピー完了メッセージを一時的に表示する関数
+            const showCopyMessage = () => {
+                copyMsg.classList.remove('hidden');
+                setTimeout(() => {
+                    copyMsg.classList.add('hidden');
+                }, 2000);
+            };
+        });
+    </script>
+</body>
+</html>

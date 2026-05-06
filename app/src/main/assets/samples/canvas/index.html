@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Canvas</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* デフォルトのタッチアクション（スクロールやピンチズーム）を無効化 */
+        #drawing-canvas {
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        /* スムーズなトランジション用 */
+        .color-btn {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .color-btn.active {
+            transform: scale(1.15);
+            box-shadow: 0 0 0 2px white, 0 0 0 4px #6366f1;
+        }
+    </style>
+</head>
+<body class="bg-[#fafafa] overflow-hidden h-screen w-screen flex flex-col font-sans select-none text-slate-800">
+
+    <!-- Header -->
+    <header class="flex items-center justify-between p-4 border-b border-gray-100 shadow-sm z-10 bg-white shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-[1.25rem] flex items-center justify-center text-white shadow-md">
+               <i data-lucide="cloud" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-bold text-indigo-700 leading-tight">Canvas</h1>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <!-- 画像追加ボタン -->
+            <button id="add-image-btn" class="w-11 h-11 rounded-full border border-gray-200 bg-white text-slate-700 flex items-center justify-center hover:bg-slate-50 transition shadow-sm" title="画像を挿入">
+                <i data-lucide="image" class="w-5 h-5"></i>
+            </button>
+            <input type="file" id="image-upload" accept="image/*" class="hidden">
+            
+            <!-- ダウンロードボタン -->
+            <button id="download-btn" class="w-11 h-11 rounded-full bg-[#111827] text-white flex items-center justify-center hover:bg-slate-800 transition shadow-md" title="画像として保存">
+                <i data-lucide="download" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 relative overflow-hidden bg-[#ffffff]" id="canvas-container">
+        
+        <!-- Canvas -->
+        <canvas id="drawing-canvas" class="absolute top-0 left-0 w-full h-full cursor-crosshair"></canvas>
+
+        <!-- Right Side Floating Action Buttons -->
+        <div class="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10">
+            <button id="undo-btn" class="w-12 h-12 bg-white rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.08)] flex items-center justify-center text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition border border-gray-100 disabled:opacity-40 disabled:hover:text-slate-600 disabled:cursor-not-allowed">
+                <i data-lucide="undo" class="w-5 h-5"></i>
+            </button>
+            <button id="redo-btn" class="w-12 h-12 bg-white rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.08)] flex items-center justify-center text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition border border-gray-100 disabled:opacity-40 disabled:hover:text-slate-600 disabled:cursor-not-allowed">
+                <i data-lucide="redo" class="w-5 h-5"></i>
+            </button>
+            <button id="clear-btn" class="w-12 h-12 bg-white rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.08)] flex items-center justify-center text-red-500 hover:bg-red-50 transition border border-gray-100 mt-2">
+                <i data-lucide="trash-2" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Bottom Toolbar -->
+        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100 p-2.5 flex items-center gap-4 z-10 w-max max-w-[90vw] overflow-x-auto">
+            
+            <!-- Tools -->
+            <div class="flex items-center gap-1 bg-slate-100/80 p-1 rounded-full border border-slate-200/50">
+                <button id="tool-pen" class="w-10 h-10 rounded-full flex items-center justify-center bg-white text-indigo-600 shadow-sm transition">
+                    <i data-lucide="pen" class="w-5 h-5"></i>
+                </button>
+                <button id="tool-eraser" class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-800 transition">
+                    <i data-lucide="eraser" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <div class="w-px h-8 bg-gray-200 shrink-0"></div>
+
+            <!-- Color Palette -->
+            <div class="flex items-center gap-2.5 px-2 shrink-0" id="color-palette">
+                <!-- Colors injected by JS -->
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- 初期化 ---
+        lucide.createIcons();
+
+        const canvas = document.getElementById('drawing-canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+        let dpr = window.devicePixelRatio || 1;
+
+        // --- 状態管理 ---
+        let elements = []; // { type: 'path', color, width, points, isEraser } または { type: 'image', img, x, y, width, height }
+        let history = [[]];
+        let historyStep = 0;
+        
+        let currentStroke = null;
+        let isDrawing = false;
+        let mode = 'draw'; // 'draw' | 'erase'
+        let currentColor = '#1e293b'; // デフォルト黒
+        const strokeWidth = 4;
+        const eraserWidth = 24;
+
+        // パン・ズーム（二本指操作）の状態
+        let transform = { x: 0, y: 0, scale: 1 };
+        let isPanning = false;
+        let lastPinchDist = 0;
+        let lastPanPoint = { x: 0, y: 0 };
+        const activePointers = new Map();
+
+        // --- カラーパレットのセットアップ ---
+        const colors = ['#1e293b', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
+        const paletteContainer = document.getElementById('color-palette');
+        
+        colors.forEach(color => {
+            const btn = document.createElement('button');
+            btn.className = `w-8 h-8 rounded-full color-btn shrink-0`;
+            btn.style.backgroundColor = color;
+            if (color === currentColor) btn.classList.add('active');
+            
+            btn.addEventListener('click', () => {
+                currentColor = color;
+                mode = 'draw';
+                updateToolbarUI();
+            });
+            paletteContainer.appendChild(btn);
+        });
+
+        // --- リサイズ処理 ---
+        function resizeCanvas() {
+            // コンテナの実際の表示サイズを取得
+            const rect = container.getBoundingClientRect();
+            
+            // 0サイズの場合はスキップ
+            if (rect.width <= 0 || rect.height <= 0) {
+                console.warn('[Canvas Resize] Skipped: zero dimensions', rect.width, 'x', rect.height);
+                return;
+            }
+    
+            // 表示サイズ（CSS）と内部解像度（Attribute）を一致させる
+            // 高解像度ディスプレイ(DPR)対応
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+
+            // 表示上のサイズを固定（ずれ防止）
+            canvas.style.width = `${rect.width}px`;
+            canvas.style.height = `${rect.height}px`;
+            
+            console.log('[Canvas Resized] Internal:', canvas.width, 'x', canvas.height, 'Display:', rect.width, 'x', rect.height);
+
+            drawAll();
+        }
+
+        // 親要素のサイズ変更を検知してリサイズを実行
+        const resizeObserver = new ResizeObserver(() => {
+            resizeCanvas();
+        });
+        resizeObserver.observe(container);
+        
+        // WebView対応: ResizeObserverが実行されない場合のフォールバック
+        function initializeCanvas() {
+            console.log('[Canvas Init] container:', container.clientWidth, 'x', container.clientHeight, 'DPR:', dpr);
+            resizeCanvas();
+        }
+        
+        // ページ読み込み完了後にキャンバス初期化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeCanvas);
+        } else {
+            initializeCanvas();
+        }
+        
+        // Tailwind CSS等の外部リソース完全読み込み後に再度リサイズ
+        window.addEventListener('load', () => {
+            console.log('[Canvas Load] Recheck: container:', container.clientWidth, 'x', container.clientHeight);
+            resizeCanvas();
+        });
+        
+        // デバイス回転対応: DPRとサイズの再計算
+        window.addEventListener('orientationchange', () => {
+            // 回転完了を待つ
+            setTimeout(() => {
+                dpr = window.devicePixelRatio || 1;
+                console.log('[Orientation Change] New DPR:', dpr);
+                resizeCanvas();
+            }, 100);
+        });
+        
+
+        // --- 描画ロジック ---
+        function getLogicalPos(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+            // DPR正規化: タッチ座標（表示座標）をキャンバス内部座標に変換
+            return {
+                x: (x / dpr - transform.x) / transform.scale,
+                y: (y / dpr - transform.y) / transform.scale
+            };
+        }
+
+        function drawElement(el) {
+            if (el.type === 'path') {
+                if (el.points.length === 0) return;
+                
+                ctx.beginPath();
+                ctx.moveTo(el.points[0].x, el.points[0].y);
+                
+                // 曲線を滑らかにする処理
+                if (el.points.length > 2) {
+                    for (let i = 1; i < el.points.length - 1; i++) {
+                        const xc = (el.points[i].x + el.points[i + 1].x) / 2;
+                        const yc = (el.points[i].y + el.points[i + 1].y) / 2;
+                        ctx.quadraticCurveTo(el.points[i].x, el.points[i].y, xc, yc);
+                    }
+                    ctx.lineTo(el.points[el.points.length - 1].x, el.points[el.points.length - 1].y);
+                } else {
+                    ctx.lineTo(el.points[el.points.length - 1].x, el.points[el.points.length - 1].y);
+                }
+
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.lineWidth = el.isEraser ? eraserWidth : el.width;
+                ctx.strokeStyle = el.color;
+
+                if (el.isEraser) {
+                    // 消しゴムの場合は描画内容をくり抜く
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.strokeStyle = 'rgba(0,0,0,1)';
+                } else {
+                    ctx.globalCompositeOperation = 'source-over';
+                }
+                ctx.stroke();
+                
+            } else if (el.type === 'image') {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.drawImage(el.img, el.x, el.y, el.width, el.height);
+            }
+        }
+
+        function drawAll() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.save();
+            ctx.scale(dpr, dpr);
+            ctx.translate(transform.x, transform.y);
+            ctx.scale(transform.scale, transform.scale);
+
+            for (const el of elements) {
+                drawElement(el);
+            }
+            if (currentStroke) {
+                drawElement(currentStroke);
+            }
+
+            ctx.restore();
+        }
+
+        // --- 入力イベントハンドリング (Pointer Events) ---
+        canvas.addEventListener('pointerdown', (e) => {
+            activePointers.set(e.pointerId, e);
+            
+            if (activePointers.size === 1) {
+                // 1本指: 描画開始
+                const pos = getLogicalPos(e.clientX, e.clientY);
+                isDrawing = true;
+                currentStroke = {
+                    type: 'path',
+                    color: currentColor,
+                    width: strokeWidth,
+                    isEraser: mode === 'erase',
+                    points: [pos]
+                };
+                canvas.setPointerCapture(e.pointerId);
+            } else if (activePointers.size === 2) {
+                // 2本指: パン＆ズーム開始
+                isDrawing = false;
+                currentStroke = null;
+                isPanning = true;
+                
+                const pts = Array.from(activePointers.values());
+                lastPinchDist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
+                lastPanPoint = {
+                    x: (pts[0].clientX + pts[1].clientX) / 2,
+                    y: (pts[0].clientY + pts[1].clientY) / 2
+                };
+            }
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+            if (!activePointers.has(e.pointerId)) return;
+            activePointers.set(e.pointerId, e);
+
+            if (activePointers.size === 1 && isDrawing) {
+                // 描画の更新
+                const pos = getLogicalPos(e.clientX, e.clientY);
+                currentStroke.points.push(pos);
+                drawAll(); // パフォーマンス最適化のためには差分描画が良いが、今回はシンプルに全描画
+                
+            } else if (activePointers.size === 2 && isPanning) {
+                // パン＆ズームの更新
+                const pts = Array.from(activePointers.values());
+                const currentDist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
+                const currentCenter = {
+                    x: (pts[0].clientX + pts[1].clientX) / 2,
+                    y: (pts[0].clientY + pts[1].clientY) / 2
+                };
+
+                // スケール計算
+                const deltaScale = currentDist / (lastPinchDist || 1);
+                const newScale = Math.min(Math.max(transform.scale * deltaScale, 0.2), 10); // 制限: 0.2倍 〜 10倍
+                const actualDeltaScale = newScale / transform.scale;
+
+                // ズーム中心を基点にした位置調整
+                const rect = canvas.getBoundingClientRect();
+                const centerX = currentCenter.x - rect.left;
+                const centerY = currentCenter.y - rect.top;
+
+                transform.x = centerX - (centerX - transform.x) * actualDeltaScale + (currentCenter.x - lastPanPoint.x);
+                transform.y = centerY - (centerY - transform.y) * actualDeltaScale + (currentCenter.y - lastPanPoint.y);
+                transform.scale = newScale;
+
+                lastPinchDist = currentDist;
+                lastPanPoint = currentCenter;
+                drawAll();
+            }
+        });
+
+        function handlePointerEnd(e) {
+            activePointers.delete(e.pointerId);
+            
+            if (activePointers.size === 0) {
+                // すべての指が離れた
+                if (isDrawing && currentStroke) {
+                    elements.push(currentStroke);
+                    currentStroke = null;
+                    saveHistory();
+                }
+                isDrawing = false;
+                isPanning = false;
+            } else {
+                // 片方の指が離れた場合も安全のため操作を中断
+                isDrawing = false;
+                isPanning = false;
+                currentStroke = null;
+                drawAll();
+            }
+        }
+
+        canvas.addEventListener('pointerup', handlePointerEnd);
+        canvas.addEventListener('pointercancel', handlePointerEnd);
+        canvas.addEventListener('pointerleave', handlePointerEnd);
+
+        // マウスホイールでのズーム・パン
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            if (e.ctrlKey) {
+                // ズーム
+                const zoomFactor = 1.05;
+                const delta = e.deltaY > 0 ? 1/zoomFactor : zoomFactor;
+                const newScale = Math.min(Math.max(transform.scale * delta, 0.2), 10);
+                const actualDelta = newScale / transform.scale;
+
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                transform.x = x - (x - transform.x) * actualDelta;
+                transform.y = y - (y - transform.y) * actualDelta;
+                transform.scale = newScale;
+            } else {
+                // パン
+                transform.x -= e.deltaX;
+                transform.y -= e.deltaY;
+            }
+            drawAll();
+        }, { passive: false });
+
+        // --- 履歴管理 (Undo / Redo) ---
+        function saveHistory() {
+            history = history.slice(0, historyStep + 1);
+            history.push([...elements]);
+            historyStep++;
+            updateUI();
+        }
+
+        document.getElementById('undo-btn').addEventListener('click', () => {
+            if (historyStep > 0) {
+                historyStep--;
+                elements = [...history[historyStep]];
+                drawAll();
+                updateUI();
+            }
+        });
+
+        document.getElementById('redo-btn').addEventListener('click', () => {
+            if (historyStep < history.length - 1) {
+                historyStep++;
+                elements = [...history[historyStep]];
+                drawAll();
+                updateUI();
+            }
+        });
+
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            if (elements.length > 0) {
+                elements = [];
+                drawAll();
+                saveHistory();
+            }
+        });
+
+        // --- UIの更新 ---
+        const toolPen = document.getElementById('tool-pen');
+        const toolEraser = document.getElementById('tool-eraser');
+
+        function updateToolbarUI() {
+            // ツールの状態更新
+            if (mode === 'draw') {
+                toolPen.className = "w-10 h-10 rounded-full flex items-center justify-center bg-white text-indigo-600 shadow-sm transition";
+                toolEraser.className = "w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-800 transition";
+            } else {
+                toolEraser.className = "w-10 h-10 rounded-full flex items-center justify-center bg-white text-indigo-600 shadow-sm transition";
+                toolPen.className = "w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-800 transition";
+            }
+
+            // カラーパレットの状態更新
+            document.querySelectorAll('.color-btn').forEach(btn => {
+                if (btn.style.backgroundColor === currentColor || btn.style.backgroundColor === hexToRgb(currentColor)) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        function updateUI() {
+            // Undo/Redoボタンの活性化
+            document.getElementById('undo-btn').disabled = historyStep === 0;
+            document.getElementById('redo-btn').disabled = historyStep === history.length - 1;
+        }
+
+        toolPen.addEventListener('click', () => { mode = 'draw'; updateToolbarUI(); });
+        toolEraser.addEventListener('click', () => { mode = 'erase'; updateToolbarUI(); });
+
+        // --- 画像挿入機能 ---
+        const imageUpload = document.getElementById('image-upload');
+        document.getElementById('add-image-btn').addEventListener('click', () => imageUpload.click());
+        
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    // キャンバスの中央に表示されるようにサイズ調整
+                    const maxWidth = container.clientWidth * 0.6;
+                    const scale = Math.min(1, maxWidth / img.width);
+                    const w = img.width * scale;
+                    const h = img.height * scale;
+                    
+                    const centerX = container.clientWidth / 2;
+                    const centerY = container.clientHeight / 2;
+                    const logicalPos = getLogicalPos(centerX, centerY);
+
+                    elements.push({
+                        type: 'image',
+                        img: img,
+                        x: logicalPos.x - w / 2,
+                        y: logicalPos.y - h / 2,
+                        width: w,
+                        height: h
+                    });
+                    
+                    saveHistory();
+                    drawAll();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+            e.target.value = ''; // 同じ画像を再度選べるようにリセット
+        });
+
+        // --- ダウンロード機能 ---
+        document.getElementById('download-btn').addEventListener('click', () => {
+            // 背景が白の画像を作成するためのオフスクリーンキャンバス
+            const offscreen = document.createElement('canvas');
+            offscreen.width = canvas.width;
+            offscreen.height = canvas.height;
+            const offCtx = offscreen.getContext('2d');
+
+            // 白背景を塗る
+            offCtx.fillStyle = '#ffffff';
+            offCtx.fillRect(0, 0, offscreen.width, offscreen.height);
+
+            // 現在のキャンバス内容を合成
+            offCtx.drawImage(canvas, 0, 0);
+
+            // ダウンロードトリガー
+            const link = document.createElement('a');
+            link.download = `sync-memo-${new Date().getTime()}.png`;
+            link.href = offscreen.toDataURL('image/png');
+            link.click();
+        });
+
+        // ユーティリティ: HEXからRGBへの変換 (TailwindがRGBで返す場合があるため)
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? `rgb(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)})` : null;
+        }
+
+        // 初期UIのセットアップ
+        updateUI();
+        updateToolbarUI();
+
+    </script>
+</body>
+</html>

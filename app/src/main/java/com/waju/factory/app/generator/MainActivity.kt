@@ -1,6 +1,7 @@
 package com.waju.factory.app.generator
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
@@ -19,6 +20,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import android.webkit.ValueCallback
 import com.waju.factory.app.generator.core.logging.DebugLogger
 import com.waju.factory.app.generator.domain.session.MiniAppSession
 import com.waju.factory.app.generator.platform.bridge.NativeBridge
@@ -41,6 +43,31 @@ class MainActivity : ComponentActivity() {
     private val debugLogger = DebugLogger("MiniAppWebView") { session.addDebugLog(it) }
     private val documentPickerHelper by lazy { DocumentPickerHelper(contentResolver) }
 
+    private var webViewFilePathCallback: ValueCallback<Array<Uri>>? = null
+
+    // 1. ファイル選択結果を受け取るランチャーの登録
+    private val fileChooserLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val dataString = result.data?.dataString
+            val clipData = result.data?.clipData
+
+            var results: Array<Uri>? = null
+
+            if (dataString != null) {
+                results = arrayOf(Uri.parse(dataString))
+            } else if (clipData != null) {
+                results = Array(clipData.itemCount) { i -> clipData.getItemAt(i).uri }
+            }
+
+            webViewFilePathCallback?.onReceiveValue(results)
+        } else {
+            // 【重要】キャンセルされた場合は必ず null を返して WebView のブロックを解除する
+            webViewFilePathCallback?.onReceiveValue(null)
+        }
+        // 使用後は必ず null にリセットする
+        webViewFilePathCallback = null
+    }
+
     private val webViewFactory by lazy {
         MiniAppWebViewFactory(
             contentResolver = contentResolver,
@@ -54,6 +81,21 @@ class MainActivity : ComponentActivity() {
                     runOnUiThread {
                         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
                     }
+                }
+            },
+            onShowFileChooserDelegate = { callback, params ->
+                // 前回のコールバックが残っていればキャンセル
+                webViewFilePathCallback?.onReceiveValue(null)
+                webViewFilePathCallback = callback
+
+                val intent = params.createIntent()
+                try {
+                    fileChooserLauncher.launch(intent)
+                    true // 処理をハンドリングしたことを返す
+                } catch (e: Exception) {
+                    webViewFilePathCallback = null
+                    Toast.makeText(this, "対応するアプリが見つかりません", Toast.LENGTH_SHORT).show()
+                    false
                 }
             }
         )

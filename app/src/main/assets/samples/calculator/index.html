@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>関数保存 電卓アプリ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- math.js: 数式評価用ライブラリ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+    <style>
+        /* ネイティブのようなタップ感を出すためのスタイル */
+        .calc-btn {
+            transition: background-color 0.1s, transform 0.05s;
+        }
+        .calc-btn:active {
+            transform: scale(0.95);
+        }
+        /* スクロールバーを隠す */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-800 font-sans flex flex-col md:flex-row p-4 gap-4 justify-center items-start">
+
+    <!-- 左側（または上部）: 電卓本体 -->
+    <div class="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden flex-shrink-0">
+        
+        <!-- ディスプレイ領域 -->
+        <div class="bg-gray-900 text-white p-6 flex flex-col justify-end items-end h-40 relative">
+            <!-- 上部: モード表示と過去の計算式/関数名 -->
+            <div class="absolute top-4 left-4 text-xs font-bold text-gray-400 flex items-center gap-1" id="mode-indicator">
+                <i class="ph ph-calculator"></i> 通常モード
+            </div>
+            
+            <div id="equation-display" class="text-gray-400 text-sm h-5 tracking-wider overflow-hidden whitespace-nowrap w-full text-right mb-1"></div>
+            <!-- 下部: 現在の入力値/結果 -->
+            <div id="main-display" class="text-5xl font-light tracking-tight overflow-hidden whitespace-nowrap w-full text-right">0</div>
+        </div>
+
+        <!-- キーパッド領域 -->
+        <div class="p-4 bg-gray-50 grid grid-cols-4 gap-3">
+            
+            <!-- 上部ツールボタン群 -->
+            <button class="calc-btn col-span-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-xl py-3 font-bold text-sm flex items-center justify-center gap-1" onclick="toggleMode()">
+                <i class="ph ph-function text-lg"></i> <span id="mode-btn-text">関数作成モードへ</span>
+            </button>
+            <button class="calc-btn bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-xl py-3 font-bold text-sm flex items-center justify-center" onclick="insertVariable('x')">
+                <i class="ph ph-variable text-lg"></i> x
+            </button>
+            <button class="calc-btn bg-red-100 hover:bg-red-200 text-red-600 rounded-xl py-3 font-bold text-lg" onclick="clearAll()">AC</button>
+
+            <!-- 通常の電卓ボタン -->
+            <button class="calc-btn bg-white shadow-sm hover:bg-gray-200 text-gray-700 rounded-xl py-3 font-medium text-xl" onclick="appendOperator('(')">(</button>
+            <button class="calc-btn bg-white shadow-sm hover:bg-gray-200 text-gray-700 rounded-xl py-3 font-medium text-xl" onclick="appendOperator(')')">)</button>
+            <button class="calc-btn bg-white shadow-sm hover:bg-gray-200 text-gray-700 rounded-xl py-3 font-medium text-xl" onclick="backspace()">
+                <i class="ph ph-backspace m-auto"></i>
+            </button>
+            <button class="calc-btn bg-indigo-50 shadow-sm hover:bg-indigo-100 text-indigo-600 rounded-xl py-3 font-medium text-2xl" onclick="appendOperator('/')">÷</button>
+
+            <button class="calc-btn bg-white shadow-sm border border-gray-100 hover:bg-gray-100 text-gray-800 rounded-xl py-3 font-medium text-2xl" onclick="appendNumber('7')">7</button>
+            <button class="calc-btn bg-white shadow-sm border border-gray-100 hover:bg-gray-100 text-gray-800 rounded-xl py-3 font-medium text-2xl" onclick="appendNumber('8')">8</button>
+            <button class="calc-btn bg-white shadow-sm border border-gray-100 hover:bg-gray-100 text-gray-800 rounded-xl py-3 font-medium text-2xl" onclick="appendNumber('9')">9</button>
+            <button class="calc-btn bg-indigo-50 shadow-sm hover:bg-indigo-100 text-indigo-600 rounded-xl py-3 font-medium text-2xl" onclick="appendOperator('*')">×</button>
+
+            <button class="calc-btn bg-white shadow-sm border border-gray-100 hover:bg-gray-100 text-gray-800 rounded-xl py-3 font-medium text-2xl" onclick="appendNumber('4')">4</button>
+            <button class="calc-btn bg-white shadow-sm border border-gray-100 hover:bg-gray-100 text-gray-800 rounded-xl py-3 font-medium text-2xl" onclick="appendNumber('5')">5</button>
+            <button class="calc-btn bg-white shadow-sm border border-gray-100 hover:bg-gray-100 text-gray-800 rounded-xl py-3 font-medium text-2xl" onclick="appendNumber('6')">6</button>
+            <button class="calc-btn bg-indigo-50 shadow-sm hover:bg-indigo-100 text-indigo-600 rounded-xl py-3 font-medium text-2xl" onclick="appendOperator('-')">-</button>
+
+            <button class="calc-btn bg-white shadow-sm border border-gray-100 hover:bg-gray-100 text-gray-800 rounded-xl py-3 font-medium text-2xl" onclick="appendNumber('1')">1</button>
+            <button class="calc-btn bg-white shadow-sm border border-gray-100 hover:bg-gray-100 text-gray-800 rounded-xl py-3 font-medium text-2xl" onclick="appendNumber('2')">2</button>
+            <button class="calc-btn bg-white shadow-sm border border-gray-100 hover:bg-gray-100 text-gray-800 rounded-xl py-3 font-medium text-2xl" onclick="appendNumber('3')">3</button>
+            <button class="calc-btn bg-indigo-50 shadow-sm hover:bg-indigo-100 text-indigo-600 rounded-xl py-3 font-medium text-2xl" onclick="appendOperator('+')">+</button>
+
+            <button class="calc-btn bg-white shadow-sm border border-gray-100 hover:bg-gray-100 text-gray-800 rounded-xl py-3 font-medium text-2xl" onclick="appendNumber('0')">0</button>
+            <button class="calc-btn bg-white shadow-sm border border-gray-100 hover:bg-gray-100 text-gray-800 rounded-xl py-3 font-medium text-2xl" onclick="appendNumber('.')">.</button>
+            
+            <!-- 保存 / イコール ボタン -->
+            <button id="action-btn" class="calc-btn col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md rounded-xl py-3 font-medium text-2xl" onclick="calculateOrSave()">=</button>
+
+        </div>
+    </div>
+
+    <!-- 右側（または下部）: 保存済み関数リスト -->
+    <div class="bg-white rounded-3xl shadow-lg w-full max-w-sm flex flex-col h-[600px]">
+        <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-3xl">
+            <h2 class="text-lg font-bold text-gray-700 flex items-center gap-2">
+                <i class="ph ph-folder-open text-xl text-blue-500"></i> 保存済み関数
+            </h2>
+            <span class="text-xs text-gray-400 bg-gray-200 px-2 py-1 rounded-full" id="function-count">0</span>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-4 space-y-3" id="saved-functions-list">
+            <!-- 関数アイテムがここに追加されます -->
+            <div class="text-center text-gray-400 text-sm mt-10" id="empty-state">
+                <i class="ph ph-function text-4xl mb-2 opacity-50"></i>
+                <p>保存された関数はありません。</p>
+                <p class="text-xs mt-1">「関数作成モード」で数式を作り、保存してください。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 関数名入力モーダル -->
+    <div id="save-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-2xl p-6 w-11/12 max-w-xs shadow-2xl transform scale-95 transition-transform duration-200" id="modal-content">
+            <h3 class="text-lg font-bold mb-4 text-gray-800">関数を保存</h3>
+            <p class="text-sm text-gray-500 mb-2 font-mono bg-gray-100 p-2 rounded" id="modal-equation"></p>
+            
+            <label class="block text-sm font-medium text-gray-700 mb-1">関数名</label>
+            <input type="text" id="function-name-input" class="w-full border border-gray-300 rounded-lg p-2 mb-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="例: 消費税込み計算">
+            
+            <div class="flex gap-2 justify-end">
+                <button class="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium" onclick="closeModal()">キャンセル</button>
+                <button class="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium" onclick="executeSaveFunction()">保存する</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 状態管理 ---
+        let currentInput = '0';      // 現在の入力文字列
+        let equation = '';           // 計算式全体
+        let isFunctionMode = false;  // 関数作成モードかどうか
+        let isResultDisplayed = false; // 結果が表示された直後かどうか
+        let savedFunctions = [];     // 保存された関数の配列
+        
+        // 呼び出し中の関数状態
+        let activeFunction = null;   // 現在呼び出している関数オブジェクト
+        let awaitingVariable = false;// 変数(x)の入力を待っている状態か
+
+        const mainDisplay = document.getElementById('main-display');
+        const equationDisplay = document.getElementById('equation-display');
+        const modeIndicator = document.getElementById('mode-indicator');
+        const modeBtnText = document.getElementById('mode-btn-text');
+        const actionBtn = document.getElementById('action-btn');
+        const emptyState = document.getElementById('empty-state');
+        const listContainer = document.getElementById('saved-functions-list');
+        const countDisplay = document.getElementById('function-count');
+
+        // --- 初期化処理 ---
+        function init() {
+            // LocalStorageからデータを読み込む
+            const stored = localStorage.getItem('calculator_functions');
+            if (stored) {
+                savedFunctions = JSON.parse(stored);
+                renderFunctionsList();
+            }
+            updateDisplay();
+        }
+
+        // --- 電卓の基本操作 ---
+        function updateDisplay() {
+            // 見た目の調整: ×と÷を見やすく
+            let displayEq = equation.replace(/\*/g, '×').replace(/\//g, '÷');
+            
+            // activeFunction使用中の表示
+            if (activeFunction) {
+                if (awaitingVariable) {
+                    equationDisplay.innerHTML = `<span class="text-blue-400">${activeFunction.name}</span> <span class="text-gray-500 text-xs">(x = ?)</span>`;
+                } else {
+                    equationDisplay.innerHTML = `<span class="text-blue-400">${activeFunction.name}</span>(x = ${equation})`;
+                }
+            } else {
+                equationDisplay.textContent = displayEq;
+            }
+
+            // メインディスプレイのスクロール調整
+            mainDisplay.textContent = currentInput;
+            mainDisplay.scrollLeft = mainDisplay.scrollWidth;
+        }
+
+        function appendNumber(num) {
+            if (isResultDisplayed || awaitingVariable) {
+                currentInput = num;
+                equation = ''; // 式をリセット
+                isResultDisplayed = false;
+                awaitingVariable = false;
+            } else {
+                if (currentInput === '0') {
+                    currentInput = num;
+                } else {
+                    currentInput += num;
+                }
+            }
+            updateDisplay();
+        }
+
+        function appendOperator(op) {
+            if (awaitingVariable) return; // 関数呼び出しで変数待機中は演算子を無効化
+
+            isResultDisplayed = false;
+            
+            if (activeFunction) {
+                // 関数に代入する値を作っている途中
+                currentInput += op;
+            } else {
+                // 通常の計算式構築
+                if (currentInput !== '0' && currentInput !== '') {
+                    equation += currentInput;
+                }
+                
+                // 直前が演算子の場合は上書きする
+                const lastChar = equation.slice(-1);
+                if (['+', '-', '*', '/'].includes(lastChar) && ['+', '-', '*', '/'].includes(op)) {
+                    equation = equation.slice(0, -1) + op;
+                } else {
+                    equation += op;
+                }
+                currentInput = '0';
+            }
+            updateDisplay();
+        }
+
+        function insertVariable(v) {
+            if (!isFunctionMode) {
+                // 通常モードでxが押されたら、強制的に関数モードに切り替えるか警告
+                toggleMode();
+            }
+            
+            if (isResultDisplayed) {
+                currentInput = v;
+                equation = '';
+                isResultDisplayed = false;
+            } else {
+                if (currentInput === '0') {
+                    currentInput = v;
+                } else {
+                    // 数字の直後にxが来たら、掛けるとして処理 (例: 2x -> 2*x)
+                    const lastChar = currentInput.slice(-1);
+                    if (/[0-9]/.test(lastChar)) {
+                        currentInput += '*' + v;
+                    } else {
+                        currentInput += v;
+                    }
+                }
+            }
+            updateDisplay();
+        }
+
+        function backspace() {
+            if (isResultDisplayed) return;
+            
+            if (currentInput.length > 1) {
+                currentInput = currentInput.slice(0, -1);
+            } else {
+                currentInput = '0';
+            }
+            updateDisplay();
+        }
+
+        function clearAll() {
+            currentInput = '0';
+            equation = '';
+            isResultDisplayed = false;
+            activeFunction = null;
+            awaitingVariable = false;
+            
+            // 関数モードの表示リセット
+            if (isFunctionMode) {
+                modeIndicator.innerHTML = '<i class="ph ph-function text-blue-500"></i> <span class="text-blue-500">関数作成モード</span>';
+            } else {
+                modeIndicator.innerHTML = '<i class="ph ph-calculator"></i> 通常モード';
+            }
+            updateDisplay();
+        }
+
+        // --- モード切替 ---
+        function toggleMode() {
+            isFunctionMode = !isFunctionMode;
+            clearAll();
+
+            if (isFunctionMode) {
+                modeIndicator.innerHTML = '<i class="ph ph-function text-blue-500"></i> <span class="text-blue-500">関数作成モード</span>';
+                modeBtnText.textContent = "通常モードへ";
+                actionBtn.textContent = "保存";
+                actionBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+                actionBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            } else {
+                modeIndicator.innerHTML = '<i class="ph ph-calculator"></i> 通常モード';
+                modeBtnText.textContent = "関数作成モードへ";
+                actionBtn.textContent = "=";
+                actionBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                actionBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            }
+        }
+
+        // --- 計算または保存の実行 ---
+        function calculateOrSave() {
+            // 式の組み立て
+            let finalEquation = '';
+            if (activeFunction) {
+                // 関数呼び出し時の計算
+                // currentInputに入っている数式（または数値）を評価してxの値とする
+                try {
+                    let xValue = math.evaluate(currentInput);
+                    // 保存されている関数に x の値を代入して評価
+                    let result = math.evaluate(activeFunction.expression, { x: xValue });
+                    
+                    // 結果のフォーマット（長過ぎる小数を丸める）
+                    result = math.format(result, { precision: 10 });
+                    
+                    equation = `${activeFunction.name}(${currentInput})`; // 表示用
+                    currentInput = result.toString();
+                    isResultDisplayed = true;
+                    activeFunction = null; // 実行後はリセット
+                    awaitingVariable = false;
+                    
+                } catch (error) {
+                    currentInput = 'Error';
+                    isResultDisplayed = true;
+                }
+                updateDisplay();
+                return;
+            }
+
+            // 通常の計算・関数作成
+            if (currentInput !== '0' && currentInput !== '') {
+                finalEquation = equation + currentInput;
+            } else {
+                finalEquation = equation;
+            }
+
+            // 末尾が演算子なら削除
+            if (['+', '-', '*', '/'].includes(finalEquation.slice(-1))) {
+                finalEquation = finalEquation.slice(0, -1);
+            }
+
+            if (finalEquation === '') return;
+
+            if (isFunctionMode) {
+                // 保存モーダルを開く
+                if (!finalEquation.includes('x')) {
+                    alert('関数として保存するには、変数 "x" を含めてください。');
+                    return;
+                }
+                openModal(finalEquation);
+            } else {
+                // 通常の計算 (math.jsを使用)
+                try {
+                    // xが含まれている場合はエラーにせず、x=1として一旦計算するか、エラー表示
+                    if(finalEquation.includes('x')){
+                         currentInput = '変数が未定義';
+                    } else {
+                        let result = math.evaluate(finalEquation);
+                        result = math.format(result, { precision: 10 });
+                        equation = finalEquation;
+                        currentInput = result.toString();
+                    }
+                } catch (error) {
+                    currentInput = 'Error';
+                }
+                isResultDisplayed = true;
+            }
+            updateDisplay();
+        }
+
+        // --- 関数呼び出し ---
+        function useFunction(id) {
+            const func = savedFunctions.find(f => f.id === id);
+            if (!func) return;
+
+            // もし関数作成モードなら通常モードに戻す
+            if (isFunctionMode) {
+                toggleMode();
+            }
+
+            activeFunction = func;
+            awaitingVariable = true;
+            currentInput = '0';
+            equation = '';
+            
+            modeIndicator.innerHTML = `<i class="ph ph-play-circle text-green-500"></i> <span class="text-green-500">関数実行</span>`;
+            updateDisplay();
+        }
+
+        // --- 関数の保存処理 ---
+        function openModal(eq) {
+            document.getElementById('modal-equation').textContent = `f(x) = ${eq.replace(/\*/g, '×').replace(/\//g, '÷')}`;
+            document.getElementById('function-name-input').value = '';
+            const modal = document.getElementById('save-modal');
+            const content = document.getElementById('modal-content');
+            
+            modal.classList.remove('hidden');
+            // 少し遅らせてアニメーションクラスを付与
+            setTimeout(() => {
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            }, 10);
+            document.getElementById('function-name-input').focus();
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('save-modal');
+            const content = document.getElementById('modal-content');
+            
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        function executeSaveFunction() {
+            const nameInput = document.getElementById('function-name-input').value.trim();
+            const name = nameInput || `関数 ${savedFunctions.length + 1}`;
+            
+            // currentInputとequationから完全な式を復元
+            let finalExpression = equation + currentInput;
+             if (['+', '-', '*', '/'].includes(finalExpression.slice(-1))) {
+                finalExpression = finalExpression.slice(0, -1);
+            }
+
+            const newFunc = {
+                id: Date.now().toString(),
+                name: name,
+                expression: finalExpression,
+                displayExp: finalExpression.replace(/\*/g, '×').replace(/\//g, '÷')
+            };
+
+            savedFunctions.unshift(newFunc); // 先頭に追加
+            saveToLocalStorage();
+            renderFunctionsList();
+            
+            closeModal();
+            clearAll(); // 電卓をリセット
+        }
+
+        function deleteFunction(id, event) {
+            event.stopPropagation(); // 親要素(呼び出し)のクリックイベント発火を防ぐ
+            if(confirm('この関数を削除しますか？')){
+                savedFunctions = savedFunctions.filter(f => f.id !== id);
+                saveToLocalStorage();
+                renderFunctionsList();
+            }
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('calculator_functions', JSON.stringify(savedFunctions));
+        }
+
+        // --- リストの描画 ---
+        function renderFunctionsList() {
+            countDisplay.textContent = savedFunctions.length;
+            
+            if (savedFunctions.length === 0) {
+                emptyState.style.display = 'block';
+                listContainer.innerHTML = '';
+                listContainer.appendChild(emptyState);
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            listContainer.innerHTML = '';
+
+            savedFunctions.forEach(func => {
+                const item = document.createElement('div');
+                item.className = "bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer group flex justify-between items-center";
+                item.onclick = () => useFunction(func.id);
+
+                item.innerHTML = `
+                    <div class="overflow-hidden pr-2">
+                        <div class="font-bold text-gray-800 text-sm mb-1 truncate">${func.name}</div>
+                        <div class="text-xs font-mono text-gray-500 truncate bg-gray-50 px-2 py-1 rounded inline-block">f(x) = ${func.displayExp}</div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="w-10 h-10 rounded-full bg-green-50 text-green-600 flex items-center justify-center hover:bg-green-100 transition-colors">
+                            <i class="ph-fill ph-play"></i>
+                        </button>
+                        <button class="w-10 h-10 rounded-full bg-gray-50 text-gray-400 opacity-0 group-hover:opacity-100 flex items-center justify-center hover:bg-red-100 hover:text-red-500 transition-all" onclick="deleteFunction('${func.id}', event)">
+                            <i class="ph ph-trash"></i>
+                        </button>
+                    </div>
+                `;
+                listContainer.appendChild(item);
+            });
+        }
+
+        // 起動時の初期化
+        init();
+
+    </script>
+</body>
+</html>
