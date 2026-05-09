@@ -1,7 +1,6 @@
 package com.waju.factory.app.generator
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
@@ -28,9 +27,10 @@ import com.waju.factory.app.generator.platform.document.DocumentPickerHelper
 import com.waju.factory.app.generator.platform.webview.MiniAppWebViewFactory
 import com.waju.factory.app.generator.ui.ViewerScreen
 import com.waju.factory.app.generator.ui.GridViewScreen
-import com.waju.factory.app.generator.ui.NewAppDialogScreen
+import com.waju.factory.app.generator.ui.ImportAppDialog
 import com.waju.factory.app.generator.ui.theme.AppGeneratorTheme
 import com.waju.factory.app.generator.viewModel.MainViewModel
+import androidx.core.net.toUri
 
 @SuppressLint("SetJavaScriptEnabled")
 class MainActivity : ComponentActivity() {
@@ -47,14 +47,14 @@ class MainActivity : ComponentActivity() {
 
     // 1. ファイル選択結果を受け取るランチャーの登録
     private val fileChooserLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
+        if (result.resultCode == RESULT_OK) {
             val dataString = result.data?.dataString
             val clipData = result.data?.clipData
 
             var results: Array<Uri>? = null
 
             if (dataString != null) {
-                results = arrayOf(Uri.parse(dataString))
+                results = arrayOf(dataString.toUri())
             } else if (clipData != null) {
                 results = Array(clipData.itemCount) { i -> clipData.getItemAt(i).uri }
             }
@@ -93,6 +93,7 @@ class MainActivity : ComponentActivity() {
                     fileChooserLauncher.launch(intent)
                     true // 処理をハンドリングしたことを返す
                 } catch (e: Exception) {
+                    e.printStackTrace()
                     webViewFilePathCallback = null
                     Toast.makeText(this, "対応するアプリが見つかりません", Toast.LENGTH_SHORT).show()
                     false
@@ -103,8 +104,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // 背景が明るいライトテーマに合わせて、ステータスバーの文字を暗くする
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(
                 android.graphics.Color.TRANSPARENT,
@@ -124,6 +123,7 @@ class MainActivity : ComponentActivity() {
                     val selectedAppId by viewModel.selectedAppId.collectAsState()
                     val showNewAppDialog by viewModel.showNewAppDialog.collectAsState()
                     val newAppTitle by viewModel.newAppTitle.collectAsState()
+                    val htmlContent by viewModel.htmlContent.collectAsState()
 
                     if (selectedAppId == null) {
                         GridViewScreen(
@@ -154,15 +154,20 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (showNewAppDialog) {
-                        NewAppDialogScreen(
-                            // SavedStateHandleから直接取得
+                        ImportAppDialog(
+                            onDismissRequest = { viewModel.dismissDialog() },
                             title = newAppTitle,
                             onTitleChange = { viewModel.updateNewAppTitle(it) },
+                            htmlContent = htmlContent,
+                            onHtmlContentChange = {viewModel.updateHtmlContent(it)},
                             onImport = { triggerImport() },
-                            onDismiss = { viewModel.dismissDialog() }
+                            onImportFromCanvas = { text ->
+                                val newApp = viewModel.importFromCanvas(text)
+                                viewModel.openApp(newApp.id)
+                                session.openApp(newApp)
+                            }
                         )
                     }
-
                 }
             }
         }
@@ -201,7 +206,6 @@ class MainActivity : ComponentActivity() {
                     viewModel.openApp(newApp.id)
                     viewModel.dismissDialog()
                     session.applyImportedApp(newApp)
-
                     debugLogger.debug("Imported: ${newApp.title}")
                     Toast.makeText(this, "インポート完了", Toast.LENGTH_SHORT).show()
                     triggerSelectAssetFolder(uri)

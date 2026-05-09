@@ -1,5 +1,6 @@
 package com.waju.factory.app.generator.ui
 
+import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -7,11 +8,16 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -20,13 +26,21 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,6 +50,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import android.content.ClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -70,10 +86,9 @@ fun GridViewScreen(
                         .padding(20.dp)
                 )
             }
-            // 3. コンテンツ部分
             if (apps.isEmpty()) {
                 Column(
-                    modifier = Modifier.weight(1f).fillMaxWidth(), // 残りのスペースを埋める
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -81,7 +96,6 @@ fun GridViewScreen(
                     Text("＋ボタンで新規作成してください", fontSize = 12.sp, color = Color.Gray)
                 }
             } else {
-                // weight(1f) を指定して、タイトル以外の残りの画面いっぱいに広げる
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier
@@ -145,11 +159,9 @@ private fun MiniAppCardComposable(
         shadowElevation = 2.dp
     ) {
         Box(modifier = Modifier.padding(12.dp)) {
-            // カードの中身
             Column(
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // アイコンの背景ボックス
                 Box(
                     modifier = Modifier
                         .size(56.dp)
@@ -211,39 +223,107 @@ private fun DeleteAppDialog(
     )
 }
 
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NewAppDialogScreen(
+fun ImportAppDialog(
+    onDismissRequest: () -> Unit,
     title: String,
     onTitleChange: (String) -> Unit,
+    htmlContent: String,
+    onHtmlContentChange: (String) -> Unit,
     onImport: () -> Unit,
-    onDismiss: () -> Unit
+    onImportFromCanvas: (String) -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("新規ミニアプリ") },
-        text = {
-            TextField(
-                value = title,
-                onValueChange = onTitleChange,
-                label = { Text("タイトル") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { onImport() })
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = { if (title.isNotBlank()) onImport() },
-                enabled = title.isNotBlank()
+    val context = LocalContext.current
+    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+
+    BasicAlertDialog(
+        onDismissRequest = onDismissRequest
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier
+                .wrapContentWidth()
+                .wrapContentHeight()
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp)
             ) {
-                Text("Import")
-            }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("Cancel")
+                // タイトル
+                Text(
+                    text = "新規ミニアプリ",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                TextField(
+                    value = title,
+                    onValueChange = onTitleChange,
+                    label = { Text("タイトル") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { onImport() })
+                )
+
+                OutlinedTextField(
+                    value = htmlContent,
+                    onValueChange = onHtmlContentChange,
+                    label = { Text("HTMLコード") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    maxLines = 5,
+                    singleLine = false
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween // 左右に振り分け
+                ) {
+                    TextButton(onClick = onDismissRequest) {
+                        Icon(Icons.Default.Cancel, contentDescription = "close dialog")
+                    }
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp) // ボタン間の余白
+                    ) {
+                        TextButton(
+                            onClick = onImport,
+                            enabled = title.isNotBlank() && htmlContent.isBlank()
+                        ) {
+                            Icon(Icons.Default.Folder, contentDescription = "import")
+                        }
+
+                        TextButton(
+                            onClick = {
+                                if (clipboardManager.hasPrimaryClip()) {
+                                    val clipData = clipboardManager.primaryClip
+                                    if (clipData != null && clipData.itemCount > 0) {
+                                        val text = clipData.getItemAt(0).text
+                                        if (text != null) {
+                                            onImportFromCanvas(text.toString())
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = title.isNotBlank() && htmlContent.isBlank()
+                        ) {
+                            Icon(Icons.Default.ContentPaste, contentDescription = "direct paste")
+                        }
+
+                        TextButton(
+                            onClick = { onImportFromCanvas("") },
+                            enabled = title.isNotBlank() && htmlContent.isNotBlank()
+                        ) {
+                            Icon(Icons.Default.Code, contentDescription = "write code")
+                        }
+                    }
+                }
             }
         }
-    )
+    }
 }

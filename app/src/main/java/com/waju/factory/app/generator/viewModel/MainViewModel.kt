@@ -42,11 +42,15 @@ class MainViewModel(
     private val _showNewAppDialog = MutableStateFlow(false)
     val showNewAppDialog: StateFlow<Boolean> = _showNewAppDialog.asStateFlow()
 
-    // 💡 プロセス・キル対策：SavedStateHandle を使ってタイトルを保持する
     val newAppTitle: StateFlow<String> = savedStateHandle.getStateFlow("NEW_APP_TITLE", "")
+    val htmlContent: StateFlow<String> = savedStateHandle.getStateFlow("HTML_CONTENT", "")
 
     fun updateNewAppTitle(title: String) {
         savedStateHandle["NEW_APP_TITLE"] = title
+    }
+
+    fun updateHtmlContent(htmlContent: String) {
+        savedStateHandle["HTML_CONTENT"] = htmlContent
     }
 
     init {
@@ -74,7 +78,6 @@ class MainViewModel(
 
     private fun ensureSampleAppExists(apps: List<MiniApp>): List<MiniApp> {
         val existingIds = apps.map { it.id }.toSet()
-        // 追加すべきサンプルがひとつもなければそのまま返す
         if (SampleApp.entries.all { it.id in existingIds }) {
             return apps
         }
@@ -86,9 +89,9 @@ class MainViewModel(
             .toEpochMilli()
 
         val newSamples = SampleApp.entries
-            .filter { it.id !in existingIds }          // 未追加のものだけ
+            .filter { it.id !in existingIds }
             .mapNotNull { sample ->
-                val html = readSampleHtml(sample.indexPath) ?: return@mapNotNull null  // ファイルがなければスキップ
+                val html = readSampleHtml(sample.indexPath) ?: return@mapNotNull null
                 MiniApp(
                     id = sample.id,
                     title = sample.title,
@@ -132,6 +135,7 @@ class MainViewModel(
     fun dismissDialog() {
         _showNewAppDialog.value = false
         savedStateHandle["NEW_APP_TITLE"] = ""
+        savedStateHandle["HTML_CONTENT"] = ""
     }
 
     fun addApp(htmlContent: String): MiniApp {
@@ -161,5 +165,19 @@ class MainViewModel(
         val updatedList = _miniApps.value.map { if (it.id == updatedApp.id) updatedApp else it }
         _miniApps.value = updatedList
         saveMiniApps(updatedList)
+    }
+
+    fun importFromCanvas(text: String): MiniApp {
+        val currentContent = text.ifEmpty { htmlContent.value }
+        val cleanedHTML = currentContent
+            .replace("```html", "")
+            .replace("```", "")
+            .trim()
+
+        updateHtmlContent(cleanedHTML)
+
+        val newApp = addApp(cleanedHTML)
+        dismissDialog()
+        return newApp
     }
 }

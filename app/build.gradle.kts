@@ -49,6 +49,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation("androidx.documentfile:documentfile:1.1.0")
     implementation("com.google.code.gson:gson:2.10.1")
+    implementation(libs.androidx.compiler)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -63,5 +64,6 @@ dependencies {
     // TODO: Add the dependencies for Firebase products you want to use
     // When using the BoM, don't specify versions in Firebase dependencies
     implementation("com.google.firebase:firebase-analytics")
+    implementation("androidx.compose.material:material-icons-extended")
 
 }
