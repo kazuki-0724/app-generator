@@ -5,7 +5,6 @@ import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.webkit.ConsoleMessage
-import android.webkit.JavascriptInterface
 import android.webkit.MimeTypeMap
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
@@ -16,6 +15,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.view.ViewGroup
 import androidx.documentfile.provider.DocumentFile
 import java.io.ByteArrayInputStream
 import java.io.InputStream
@@ -37,11 +37,34 @@ class MiniAppWebViewFactory(
     @SuppressLint("JavascriptInterface")
     fun createWebView(context: Context, htmlVirtualPath: String): WebView {
         return WebView(context).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
 
+            // viewport meta タグを有効化（レイアウト崩れ防止に必須）
+            settings.useWideViewPort = true
+            // overview による初期縮小は高さ計算と競合しやすいため無効化する
+            settings.loadWithOverviewMode = false
+
+            // システムのフォントサイズ設定をWebViewに反映させない
+            settings.textZoom = 100
+
+            // 動画・音声のインライン再生と自動再生を許可
+            settings.mediaPlaybackRequiresUserGesture = false
+
+            // Chrome DevTools でのリモートデバッグを有効化（デバッグビルドのみ）
+            WebView.setWebContentsDebuggingEnabled(
+                appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+            )
+
             webViewClient = object : WebViewClient() {
+                private var lastRelayoutUrl: String? = null
+
                 override fun shouldInterceptRequest(
                     view: WebView?,
                     request: WebResourceRequest?
@@ -74,15 +97,60 @@ class MiniAppWebViewFactory(
                     onDebugLog("HTTP ${errorResponse?.statusCode ?: "?"}: ${request?.url}")
                 }
 
+                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    onDebugLog("Page start: ${url ?: "unknown"} view=${view?.width ?: 0}x${view?.height ?: 0}")
+                }
+
+                override fun onPageCommitVisible(view: WebView?, url: String?) {
+                    super.onPageCommitVisible(view, url)
+                    onDebugLog("First paint committed: ${url ?: "unknown"} view=${view?.width ?: 0}x${view?.height ?: 0}")
+                    dispatchRelayout(view)
+
+                    if (view != null) {
+                        view.postVisualStateCallback(System.nanoTime(), object : WebView.VisualStateCallback() {
+                            override fun onComplete(requestId: Long) {
+                            onDebugLog("Visual state ready: ${url ?: "unknown"}")
+                            dispatchRelayout(view)
+                            }
+                        })
+                    }
+                }
+
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     onDebugLog("Page loaded: ${url ?: "unknown"}")
+                    // First paint 前後で保険として再計算を1回だけ行う
+                    if (url != null && url != lastRelayoutUrl) {
+                        dispatchRelayout(view)
+                        lastRelayoutUrl = url
+                    }
+                }
+
+                private fun dispatchRelayout(view: WebView?) {
+                    val script = """
+                        (function() {
+                            window.dispatchEvent(new Event('resize'));
+                            window.requestAnimationFrame(function() {
+                                window.dispatchEvent(new Event('resize'));
+                            });
+                        })();
+                    """.trimIndent()
+
+                    view?.evaluateJavascript(script, null)
+                    view?.postDelayed({ view.evaluateJavascript("window.dispatchEvent(new Event('resize'));", null) }, 80L)
                 }
             }
 
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
-                    onDebugLog("Console: ${consoleMessage.message()}")
+                    val message = consoleMessage.message()
+                    // "zero dimensions" は Chromium レンダラーが初期フレームでサーフェスを
+                    // まだ確立できていないときに出す内部警告。実害はないのでフィルタリングする。
+                    if (message.contains("zero dimensions", ignoreCase = true)) {
+                        return true
+                    }
+                    onDebugLog("Console: $message")
                     return true
                 }
 

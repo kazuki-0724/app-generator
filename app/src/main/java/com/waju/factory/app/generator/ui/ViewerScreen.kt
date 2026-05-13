@@ -34,6 +34,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,6 +73,13 @@ fun ViewerScreen(
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     var fullScreen by remember { mutableStateOf(false) }
+    // WebView コンテナのレイアウトサイズが確定したかどうか
+    var webViewLayoutReady by remember { mutableStateOf(false) }
+
+    // ロード対象が変わったら、レイアウト準備状態を必ず再判定する
+    LaunchedEffect(htmlVirtualPath, currentPageVersion, fullScreen) {
+        webViewLayoutReady = false
+    }
 
 
     BackHandler(enabled = true) {
@@ -158,12 +166,35 @@ fun ViewerScreen(
                     .fillMaxSize()
                     .padding(3.dp),
                 factory = { context ->
-                    createWebView(context, htmlVirtualPath)
+                    createWebView(context, htmlVirtualPath).also { webView ->
+                        // View.onLayout() 完了後、さらに post で1ループ遅延させてから loadUrl する。
+                        // こうすることで Chromium のレンダラーがサーフェスサイズを確定した後に
+                        // ページロードが始まり、"Skipped zero dimensions" を抑制できる。
+                        var initialLoadTriggered = false
+                        webView.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+                            val width = right - left
+                            val height = bottom - top
+                            if (!initialLoadTriggered && width > 0 && height > 0) {
+                                initialLoadTriggered = true
+                                webView.post {
+                                    webViewLayoutReady = true
+                                }
+                            }
+                        }
+                    }
                 },
                 update = { webView ->
-                    val targetUrl = buildAppLocalUrl(htmlVirtualPath, currentPageVersion)
-                    if (webView.url != targetUrl) {
-                        webView.loadUrl(targetUrl)
+                    // WebView の View.onLayout() 完了前はロードしない
+                    val hasMeasuredSize = webView.isLaidOut && webView.width > 0 && webView.height > 0
+                    if (!webViewLayoutReady && hasMeasuredSize) {
+                        webViewLayoutReady = true
+                    }
+
+                    if (webViewLayoutReady && hasMeasuredSize) {
+                        val targetUrl = buildAppLocalUrl(htmlVirtualPath, currentPageVersion)
+                        if (webView.url != targetUrl) {
+                            webView.loadUrl(targetUrl)
+                        }
                     }
                 }
             )
