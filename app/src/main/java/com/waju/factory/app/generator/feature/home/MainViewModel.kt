@@ -1,12 +1,13 @@
-package com.waju.factory.app.generator.viewModel
+package com.waju.factory.app.generator.feature.home
 
 import android.app.Application
 import android.content.Context
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.waju.factory.app.generator.domain.model.MiniApp
+import com.waju.factory.app.generator.data.model.MiniApp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,7 +15,6 @@ import java.io.IOException
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
-import androidx.core.content.edit
 
 class MainViewModel(
     application: Application,

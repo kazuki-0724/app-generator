@@ -1,4 +1,4 @@
-package com.waju.factory.app.generator.platform.bridge
+package com.waju.factory.app.generator.core.webview
 
 import android.content.SharedPreferences
 import android.webkit.JavascriptInterface
@@ -22,5 +22,3 @@ class NativeBridge(
         onShowToast(message)
     }
 }
-
-

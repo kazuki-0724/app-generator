@@ -49,21 +49,19 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.viewinterop.AndroidView
-import com.waju.factory.app.generator.domain.model.MiniApp
-import com.waju.factory.app.generator.ui.theme.DarkGray
+import com.waju.factory.app.generator.core.theme.DarkGray
+import com.waju.factory.app.generator.data.model.MiniApp
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ViewerScreen(
+fun ViewerContent(
     app: MiniApp,
     htmlVirtualPath: String,
     currentPageVersion: Int,
     logs: List<String>,
     currentHtmlContent: String,
     onBack: () -> Unit,
-    onSelectAssetFolder: () -> Unit,
-    onSave: (MiniApp) -> Unit,
     createWebView: (Context, String) -> WebView,
     buildAppLocalUrl: (String, Int) -> String
 ) {
@@ -212,54 +210,24 @@ fun ViewerScreen(
                         } }, // シートの外側をタップした時
                     sheetState = sheetState
                 ) {
-                    Column {
-                        Row (
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp)
-                        ) {
-                            Button(
-                                onClick = onSelectAssetFolder,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Asset Folder")
-                            }
-
-                            Spacer(modifier = Modifier.width(6.dp))
-
-                            Button(
-                                onClick = {
-                                    val updated = app.copy(
-                                        htmlContent = currentHtmlContent,
-                                        timestamp = System.currentTimeMillis()
-                                    )
-                                    onSave(updated)
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Save")
-                            }
-                        }
-
-                        Column (
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 8.dp)
-                                .background(Color.Black.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
-                                .padding(3.dp)
-                                .verticalScroll(rememberScrollState())
-                        ){
-                            Text("WebView Debug", fontSize = 12.sp, color = Color.White)
-                            if (logs.isEmpty()) {
-                                Text(
-                                    "読み込みログと JavaScript コンソールがここに表示されます。",
-                                    fontSize = 11.sp,
-                                    color = Color.Gray
-                                )
-                            } else {
-                                logs.takeLast(100).reversed().forEach { log ->
-                                    Text(text = log, fontSize = 10.sp, color = Color.White)
-                                }
+                    Column (
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 8.dp)
+                            .background(Color.Black.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
+                            .padding(3.dp)
+                            .verticalScroll(rememberScrollState())
+                    ){
+                        Text("WebView Debug", fontSize = 12.sp, color = Color.White)
+                        if (logs.isEmpty()) {
+                            Text(
+                                "読み込みログと JavaScript コンソールがここに表示されます。",
+                                fontSize = 11.sp,
+                                color = Color.Gray
+                            )
+                        } else {
+                            logs.takeLast(100).reversed().forEach { log ->
+                                Text(text = log, fontSize = 10.sp, color = Color.White)
                             }
                         }
                     }

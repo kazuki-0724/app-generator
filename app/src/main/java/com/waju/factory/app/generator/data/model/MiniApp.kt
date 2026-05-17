@@ -1,4 +1,5 @@
-package com.waju.factory.app.generator.domain.model
+package com.waju.factory.app.generator.data.model
+
 data class MiniApp(
     val id: String,
     val title: String,

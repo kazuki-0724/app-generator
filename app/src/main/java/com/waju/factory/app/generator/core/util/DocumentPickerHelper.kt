@@ -1,4 +1,4 @@
-package com.waju.factory.app.generator.platform.document
+package com.waju.factory.app.generator.core.util
 
 import android.content.ContentResolver
 import android.content.Intent
@@ -40,5 +40,3 @@ class DocumentPickerHelper(
             ?: throw IllegalStateException("Could not read text from uri")
     }
 }
-
-

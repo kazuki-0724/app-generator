@@ -1,4 +1,4 @@
-package com.waju.factory.app.generator.ui.theme
+package com.waju.factory.app.generator.core.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

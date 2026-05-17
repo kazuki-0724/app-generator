@@ -1,11 +1,11 @@
-package com.waju.factory.app.generator.domain.session
+package com.waju.factory.app.generator.data.session
 
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import com.waju.factory.app.generator.domain.model.MiniApp
+import com.waju.factory.app.generator.data.model.MiniApp
 
 class MiniAppSession {
     var currentHtmlContent by mutableStateOf("")

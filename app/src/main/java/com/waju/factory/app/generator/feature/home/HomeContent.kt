@@ -1,4 +1,4 @@
-package com.waju.factory.app.generator.ui
+package com.waju.factory.app.generator.feature.home
 
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,102 +52,96 @@ import androidx.compose.ui.graphics.Color
 import android.content.ClipboardManager
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.waju.factory.app.generator.domain.model.MiniApp
+import com.waju.factory.app.generator.data.model.MiniApp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.platform.LocalLocale
 
 @Composable
-fun GridViewScreen(
+fun HomeContent(
     apps: List<MiniApp>,
     onAppClick: (MiniApp) -> Unit,
     onAppDelete: (MiniApp) -> Unit,
     onAddNew: () -> Unit,
-    onAppDetailDataDelete: (MiniApp) -> Unit
+    onAppDetailDataDelete: (MiniApp) -> Unit,
+    goSettings: () -> Unit,
+    onDismissRequest: () -> Unit,
+    onTitleChange: (String) -> Unit,
+    onHtmlContentChange: (String) -> Unit,
+    showNewAppDialog: Boolean,
+    newAppTitle: String,
+    htmlContent: String,
 ) {
     var appToDelete by remember { mutableStateOf<MiniApp?>(null) }
-    var showSettingsSheet by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .systemBarsPadding()
     ) {
-        if (showSettingsSheet) {
-            SettingsSheet(
-                onDismiss = { showSettingsSheet = false }
-            )
-        } else {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Box {
-                    Row(
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box {
+                // ヘッダーエリア
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "App Gallery",
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .padding(20.dp)
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Button(
+                        onClick = goSettings,
+                        modifier = Modifier.padding(20.dp)
                     ) {
-                        Text(
-                            "App Gallery",
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .padding(20.dp)
-                        )
-
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        Button(
-                            onClick = { showSettingsSheet = true },
-                            modifier = Modifier.padding(20.dp)
-                        ) {
-                            Icon(Icons.Default.Settings, "Settings")
-                        }
-                    }
-                }
-                if (apps.isEmpty()) {
-                    Column(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("ミニアプリがまだありません", color = Color.White)
-                        Text("＋ボタンで新規作成してください", fontSize = 12.sp, color = Color.Gray)
-                    }
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(apps) { app ->
-                            MiniAppCardComposable(
-                                app = app,
-                                onClick = { onAppClick(app) },
-                                onLongClick = { appToDelete = app }
-                            )
-                        }
+                        Icon(Icons.Default.Settings, "Settings")
                     }
                 }
             }
 
-            FloatingActionButton(
-                onClick = onAddNew,
+            // メインエリア
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(Icons.Default.Add, "Add")
+                items(apps) { app ->
+                    MiniAppCardComposable(
+                        app = app,
+                        onClick = { onAppClick(app) },
+                        onLongClick = { appToDelete = app }
+                    )
+                }
             }
         }
+
+        // FAB
+        FloatingActionButton(
+            onClick = onAddNew,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            containerColor = MaterialTheme.colorScheme.primary,
+        ) {
+            Icon(Icons.Default.Add, "Add")
+        }
+
         if (appToDelete != null) {
             AppDialog(
                 title = appToDelete!!.title,
@@ -161,6 +154,18 @@ fun GridViewScreen(
                     onAppDetailDataDelete(appToDelete!!)
                     appToDelete = null
                 }
+            )
+        }
+
+        if (showNewAppDialog) {
+            ImportAppDialog(
+                onDismissRequest = onDismissRequest,
+                title = newAppTitle,
+                onTitleChange = onTitleChange,
+                htmlContent = htmlContent,
+                onHtmlContentChange = onHtmlContentChange,
+                onImport = {},
+                onImportFromCanvas = {}
             )
         }
     }
@@ -197,7 +202,7 @@ private fun MiniAppCardComposable(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = app.title.take(1).uppercase(Locale.getDefault()),
+                        text = app.title.take(1).uppercase(LocalLocale.current.platformLocale),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1E293B)

@@ -22,17 +22,22 @@ import androidx.compose.ui.graphics.Color
 import android.webkit.ValueCallback
 import androidx.compose.runtime.Composable
 import com.waju.factory.app.generator.core.logging.DebugLogger
-import com.waju.factory.app.generator.domain.session.MiniAppSession
-import com.waju.factory.app.generator.platform.bridge.NativeBridge
-import com.waju.factory.app.generator.platform.document.DocumentPickerHelper
-import com.waju.factory.app.generator.platform.webview.MiniAppWebViewFactory
-import com.waju.factory.app.generator.ui.ViewerScreen
-import com.waju.factory.app.generator.ui.GridViewScreen
-import com.waju.factory.app.generator.ui.ImportAppDialog
-import com.waju.factory.app.generator.ui.theme.AppGeneratorTheme
-import com.waju.factory.app.generator.viewModel.MainViewModel
+import com.waju.factory.app.generator.data.session.MiniAppSession
+import com.waju.factory.app.generator.core.webview.NativeBridge
+import com.waju.factory.app.generator.core.util.DocumentPickerHelper
+import com.waju.factory.app.generator.core.webview.MiniAppWebViewFactory
+import com.waju.factory.app.generator.feature.viewer.ViewerScreen
+import com.waju.factory.app.generator.feature.home.HomeScreen
+import com.waju.factory.app.generator.feature.home.ImportAppDialog
+import com.waju.factory.app.generator.core.theme.AppGeneratorTheme
+import com.waju.factory.app.generator.feature.home.MainViewModel
 import androidx.core.net.toUri
 import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
+import com.waju.factory.app.generator.feature.settings.SettingsScreen
+import com.waju.factory.app.generator.navigation.ScreenRoute
 
 @SuppressLint("SetJavaScriptEnabled")
 class MainActivity : ComponentActivity() {
@@ -122,63 +127,60 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun MainScreen() {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = Color.White
-        ) {
-            val apps by viewModel.miniApps.collectAsState()
-            val selectedAppId by viewModel.selectedAppId.collectAsState()
-            val showNewAppDialog by viewModel.showNewAppDialog.collectAsState()
-            val newAppTitle by viewModel.newAppTitle.collectAsState()
-            val htmlContent by viewModel.htmlContent.collectAsState()
-
-            if (selectedAppId == null) {
-                GridViewScreen(
-                    apps = apps,
-                    onAppClick = { app ->
-                        viewModel.openApp(app.id)
-                        session.openApp(app)
+        // Navigation Graph
+        val navController = rememberNavController()
+        NavHost(navController = navController, startDestination = ScreenRoute.HomeRoute) {
+            composable<ScreenRoute.HomeRoute> {
+                HomeScreen(
+                    apps = viewModel.miniApps.collectAsState().value,
+                    session = session,
+                    goSettings = {
+                        navController.navigate(ScreenRoute.SettingsRoute)
                     },
-                    onAppDelete = { app -> viewModel.deleteApp(app) },
-                    onAddNew = { viewModel.showDialog() },
-                    onAppDetailDataDelete = { app ->
-                        viewModel.deleteAppDetailData(app.id)
+                    goViewer = { app ->
+                        navController.navigate(ScreenRoute.ViewerRoute(app.id))
                     }
                 )
-            } else {
-                val app = apps.find { it.id == selectedAppId }
-                if (app != null) {
-                    ViewerScreen(
-                        app = app,
-                        htmlVirtualPath = session.currentHtmlVirtualPath,
-                        currentPageVersion = session.pageLoadVersion,
-                        logs = session.debugMessages,
-                        currentHtmlContent = session.currentHtmlContent,
-                        onBack = { viewModel.closeEditor() },
-                        onSelectAssetFolder = { triggerSelectAssetFolder() },
-                        onSave = { updated -> viewModel.updateApp(updated) },
-                        createWebView = webViewFactory::createWebView,
-                        buildAppLocalUrl = webViewFactory::buildAppLocalUrl
-                    )
-                }
             }
-
-            if (showNewAppDialog) {
-                ImportAppDialog(
-                    onDismissRequest = { viewModel.dismissDialog() },
-                    title = newAppTitle,
-                    onTitleChange = { viewModel.updateNewAppTitle(it) },
-                    htmlContent = htmlContent,
-                    onHtmlContentChange = {viewModel.updateHtmlContent(it)},
-                    onImport = { triggerImport() },
-                    onImportFromCanvas = { text ->
-                        val newApp = viewModel.importFromCanvas(text)
-                        viewModel.openApp(newApp.id)
-                        session.openApp(newApp)
-                    }
+            composable<ScreenRoute.SettingsRoute> {
+                SettingsScreen()
+            }
+            composable<ScreenRoute.ViewerRoute> { backStackEntry ->
+                // Navigation引数から ViewerRoute をデシリアライズして取得
+                val route = backStackEntry.toRoute<ScreenRoute.ViewerRoute>()
+                val app = viewModel.miniApps.collectAsState().value.find { it.id == route.appId }
+                app ?: return@composable
+                ViewerScreen(
+                    app = app,
+                    htmlVirtualPath = appLocalHost,
+                    currentPageVersion = 0,
+                    logs = emptyList(),
+                    currentHtmlContent = app.htmlContent,
+                    onBack = { navController.navigateUp() },
+                    webViewFactory = webViewFactory
                 )
             }
         }
+
+//        val showNewAppDialog by viewModel.showNewAppDialog.collectAsState()
+//        val newAppTitle by viewModel.newAppTitle.collectAsState()
+//        val htmlContent by viewModel.htmlContent.collectAsState()
+//
+//        if (showNewAppDialog) {
+//            ImportAppDialog(
+//                onDismissRequest = { viewModel.dismissDialog() },
+//                title = newAppTitle,
+//                onTitleChange = { viewModel.updateNewAppTitle(it) },
+//                htmlContent = htmlContent,
+//                onHtmlContentChange = {viewModel.updateHtmlContent(it)},
+//                onImport = { triggerImport() },
+//                onImportFromCanvas = { text ->
+//                    val newApp = viewModel.importFromCanvas(text)
+//                    viewModel.openApp(newApp.id)
+//                    session.openApp(newApp)
+//                }
+//            )
+//        }
     }
 
     private fun takeReadPermission(uri: Uri, flags: Int) {

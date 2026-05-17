@@ -1,9 +1,12 @@
-package com.waju.factory.app.generator.platform.webview
+package com.waju.factory.app.generator.core.webview
 
 import android.annotation.SuppressLint
 import android.content.ContentResolver
 import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.graphics.Bitmap
 import android.net.Uri
+import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.MimeTypeMap
 import android.webkit.PermissionRequest
@@ -15,7 +18,6 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.view.ViewGroup
 import androidx.documentfile.provider.DocumentFile
 import java.io.ByteArrayInputStream
 import java.io.InputStream
@@ -59,7 +61,7 @@ class MiniAppWebViewFactory(
 
             // Chrome DevTools でのリモートデバッグを有効化（デバッグビルドのみ）
             WebView.setWebContentsDebuggingEnabled(
-                appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+                appContext.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
             )
 
             webViewClient = object : WebViewClient() {
@@ -97,7 +99,7 @@ class MiniAppWebViewFactory(
                     onDebugLog("HTTP ${errorResponse?.statusCode ?: "?"}: ${request?.url}")
                 }
 
-                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     super.onPageStarted(view, url, favicon)
                     onDebugLog("Page start: ${url ?: "unknown"} view=${view?.width ?: 0}x${view?.height ?: 0}")
                 }
@@ -313,5 +315,3 @@ class MiniAppWebViewFactory(
             mimeType == "image/svg+xml"
     }
 }
-
-
