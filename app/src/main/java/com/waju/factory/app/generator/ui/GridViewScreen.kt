@@ -51,6 +51,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import android.content.ClipboardManager
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -66,78 +68,104 @@ fun GridViewScreen(
     apps: List<MiniApp>,
     onAppClick: (MiniApp) -> Unit,
     onAppDelete: (MiniApp) -> Unit,
-    onAddNew: () -> Unit
+    onAddNew: () -> Unit,
+    onAppDetailDataDelete: (MiniApp) -> Unit
 ) {
     var appToDelete by remember { mutableStateOf<MiniApp?>(null) }
+    var showSettingsSheet by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .systemBarsPadding()
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Box {
-                Text(
-                    "App Gallery",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .padding(20.dp)
-                )
-            }
-            if (apps.isEmpty()) {
-                Column(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("ミニアプリがまだありません", color = Color.White)
-                    Text("＋ボタンで新規作成してください", fontSize = 12.sp, color = Color.Gray)
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(apps) { app ->
-                        MiniAppCardComposable(
-                            app = app,
-                            onClick = { onAppClick(app) },
-                            onLongClick = { appToDelete = app }
+        if (showSettingsSheet) {
+            SettingsSheet(
+                onDismiss = { showSettingsSheet = false }
+            )
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                    ) {
+                        Text(
+                            "App Gallery",
+                            style = MaterialTheme.typography.headlineLarge,
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .padding(20.dp)
                         )
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        Button(
+                            onClick = { showSettingsSheet = true },
+                            modifier = Modifier.padding(20.dp)
+                        ) {
+                            Icon(Icons.Default.Settings, "Settings")
+                        }
+                    }
+                }
+                if (apps.isEmpty()) {
+                    Column(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("ミニアプリがまだありません", color = Color.White)
+                        Text("＋ボタンで新規作成してください", fontSize = 12.sp, color = Color.Gray)
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(apps) { app ->
+                            MiniAppCardComposable(
+                                app = app,
+                                onClick = { onAppClick(app) },
+                                onLongClick = { appToDelete = app }
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        FloatingActionButton(
-            onClick = onAddNew,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primary
-        ) {
-            Icon(Icons.Default.Add, "Add")
+            FloatingActionButton(
+                onClick = onAddNew,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+            ) {
+                Icon(Icons.Default.Add, "Add")
+            }
         }
-
         if (appToDelete != null) {
-            DeleteAppDialog(
+            AppDialog(
                 title = appToDelete!!.title,
                 onDelete = {
                     onAppDelete(appToDelete!!)
                     appToDelete = null
                 },
-                onDismiss = { appToDelete = null }
+                onDismiss = { appToDelete = null },
+                onAppDetailDataDelete = {
+                    onAppDetailDataDelete(appToDelete!!)
+                    appToDelete = null
+                }
             )
         }
     }
 }
+
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -200,27 +228,72 @@ private fun formatTimestamp(timestamp: Long): String {
     return formatter.format(Date(timestamp))
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DeleteAppDialog(
+private fun AppDialog(
     title: String,
     onDelete: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onAppDetailDataDelete: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Delete App") },
-        text = { Text("Are you sure you want to delete \"$title\"?") },
-        confirmButton = {
-            Button(onClick = onDelete) {
-                Text("Delete")
-            }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("Cancel")
+    BasicAlertDialog(
+        onDismissRequest = onDismiss
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier
+                .wrapContentWidth()
+                .wrapContentHeight()
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // タイトル
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    TextButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Cancel,
+                            contentDescription = "close dialog",
+                            Modifier.size(36.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    TextButton(
+                        onClick = onDelete
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "import")
+                        Text("アプリの削除")
+                    }
+
+                    TextButton(
+                        onClick = onAppDetailDataDelete
+                    ) {
+                        Icon(Icons.Default.Code, contentDescription = "write code")
+                        Text("アプリのデータ削除")
+                    }
+                }
             }
         }
-    )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

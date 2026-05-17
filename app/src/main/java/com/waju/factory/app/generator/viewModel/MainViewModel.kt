@@ -22,7 +22,7 @@ class MainViewModel(
 ) : AndroidViewModel(application) {
 
     enum class SampleApp(val id: String, val title: String, val indexPath: String) {
-        TODO("sample-todo", "TODO", "samples/todo/index.html"),
+        TODO("miniapp_todo_list", "TODO", "samples/todo/index.html"),
         CALCULATOR("sample-calculator", "Calculator", "samples/calculator/index.html"),
         QR("sample-qr", "QR Reader", "samples/qr/index.html"),
         CANVAS("sample-canvas", "Canvas", "samples/canvas/index.html"),
@@ -179,5 +179,21 @@ class MainViewModel(
         val newApp = addApp(cleanedHTML)
         dismissDialog()
         return newApp
+    }
+
+    fun getAppDetailData(key: String) : String {
+        return sharedPreferences.getString(key, "[]") ?: "[]"
+        //val type = object : TypeToken<List<MiniApp>>() {}.type
+        //return gson.fromJson<List<MiniApp>>(json, type).orEmpty()
+    }
+
+    fun deleteAppDetailData(key: String) {
+        sharedPreferences.edit { remove(key) }
+    }
+
+    fun getLocalData() : List<MiniApp> {
+        val json = sharedPreferences.getString("mini_apps_list", "[]") ?: "[]"
+        val type = object : TypeToken<List<MiniApp>>() {}.type
+        return gson.fromJson<List<MiniApp>>(json, type).orEmpty()
     }
 }

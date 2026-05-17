@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import android.webkit.ValueCallback
+import androidx.compose.runtime.Composable
 import com.waju.factory.app.generator.core.logging.DebugLogger
 import com.waju.factory.app.generator.domain.session.MiniAppSession
 import com.waju.factory.app.generator.platform.bridge.NativeBridge
@@ -31,18 +32,17 @@ import com.waju.factory.app.generator.ui.ImportAppDialog
 import com.waju.factory.app.generator.ui.theme.AppGeneratorTheme
 import com.waju.factory.app.generator.viewModel.MainViewModel
 import androidx.core.net.toUri
+import androidx.navigation.compose.NavHost
 
 @SuppressLint("SetJavaScriptEnabled")
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
-
     private lateinit var sharedPreferences: SharedPreferences
     private val appLocalHost = "app.local"
     private val session = MiniAppSession()
     private val debugLogger = DebugLogger("MiniAppWebView") { session.addDebugLog(it) }
     private val documentPickerHelper by lazy { DocumentPickerHelper(contentResolver) }
-
     private var webViewFilePathCallback: ValueCallback<Array<Uri>>? = null
 
     // 1. ファイル選択結果を受け取るランチャーの登録
@@ -115,60 +115,68 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             AppGeneratorTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.White
-                ) {
-                    val apps by viewModel.miniApps.collectAsState()
-                    val selectedAppId by viewModel.selectedAppId.collectAsState()
-                    val showNewAppDialog by viewModel.showNewAppDialog.collectAsState()
-                    val newAppTitle by viewModel.newAppTitle.collectAsState()
-                    val htmlContent by viewModel.htmlContent.collectAsState()
+                MainScreen()
+            }
+        }
+    }
 
-                    if (selectedAppId == null) {
-                        GridViewScreen(
-                            apps = apps,
-                            onAppClick = { app ->
-                                viewModel.openApp(app.id)
-                                session.openApp(app)
-                            },
-                            onAppDelete = { app -> viewModel.deleteApp(app) },
-                            onAddNew = { viewModel.showDialog() }
-                        )
-                    } else {
-                        val app = apps.find { it.id == selectedAppId }
-                        if (app != null) {
-                            ViewerScreen(
-                                app = app,
-                                htmlVirtualPath = session.currentHtmlVirtualPath,
-                                currentPageVersion = session.pageLoadVersion,
-                                logs = session.debugMessages,
-                                currentHtmlContent = session.currentHtmlContent,
-                                onBack = { viewModel.closeEditor() },
-                                onSelectAssetFolder = { triggerSelectAssetFolder() },
-                                onSave = { updated -> viewModel.updateApp(updated) },
-                                createWebView = webViewFactory::createWebView,
-                                buildAppLocalUrl = webViewFactory::buildAppLocalUrl
-                            )
-                        }
-                    }
+    @Composable
+    fun MainScreen() {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color.White
+        ) {
+            val apps by viewModel.miniApps.collectAsState()
+            val selectedAppId by viewModel.selectedAppId.collectAsState()
+            val showNewAppDialog by viewModel.showNewAppDialog.collectAsState()
+            val newAppTitle by viewModel.newAppTitle.collectAsState()
+            val htmlContent by viewModel.htmlContent.collectAsState()
 
-                    if (showNewAppDialog) {
-                        ImportAppDialog(
-                            onDismissRequest = { viewModel.dismissDialog() },
-                            title = newAppTitle,
-                            onTitleChange = { viewModel.updateNewAppTitle(it) },
-                            htmlContent = htmlContent,
-                            onHtmlContentChange = {viewModel.updateHtmlContent(it)},
-                            onImport = { triggerImport() },
-                            onImportFromCanvas = { text ->
-                                val newApp = viewModel.importFromCanvas(text)
-                                viewModel.openApp(newApp.id)
-                                session.openApp(newApp)
-                            }
-                        )
+            if (selectedAppId == null) {
+                GridViewScreen(
+                    apps = apps,
+                    onAppClick = { app ->
+                        viewModel.openApp(app.id)
+                        session.openApp(app)
+                    },
+                    onAppDelete = { app -> viewModel.deleteApp(app) },
+                    onAddNew = { viewModel.showDialog() },
+                    onAppDetailDataDelete = { app ->
+                        viewModel.deleteAppDetailData(app.id)
                     }
+                )
+            } else {
+                val app = apps.find { it.id == selectedAppId }
+                if (app != null) {
+                    ViewerScreen(
+                        app = app,
+                        htmlVirtualPath = session.currentHtmlVirtualPath,
+                        currentPageVersion = session.pageLoadVersion,
+                        logs = session.debugMessages,
+                        currentHtmlContent = session.currentHtmlContent,
+                        onBack = { viewModel.closeEditor() },
+                        onSelectAssetFolder = { triggerSelectAssetFolder() },
+                        onSave = { updated -> viewModel.updateApp(updated) },
+                        createWebView = webViewFactory::createWebView,
+                        buildAppLocalUrl = webViewFactory::buildAppLocalUrl
+                    )
                 }
+            }
+
+            if (showNewAppDialog) {
+                ImportAppDialog(
+                    onDismissRequest = { viewModel.dismissDialog() },
+                    title = newAppTitle,
+                    onTitleChange = { viewModel.updateNewAppTitle(it) },
+                    htmlContent = htmlContent,
+                    onHtmlContentChange = {viewModel.updateHtmlContent(it)},
+                    onImport = { triggerImport() },
+                    onImportFromCanvas = { text ->
+                        val newApp = viewModel.importFromCanvas(text)
+                        viewModel.openApp(newApp.id)
+                        session.openApp(newApp)
+                    }
+                )
             }
         }
     }

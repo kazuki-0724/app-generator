@@ -72,7 +72,7 @@ fun ViewerScreen(
     // 2. シートの状態管理（アニメーションなどを制御）
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
-    var fullScreen by remember { mutableStateOf(false) }
+    var fullScreen by remember { mutableStateOf(true) }
     // WebView コンテナのレイアウトサイズが確定したかどうか
     var webViewLayoutReady by remember { mutableStateOf(false) }
 

@@ -3,530 +3,592 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Canvas</title>
+    <title>Canvas Drawing App</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        /* デフォルトのタッチアクション（スクロールやピンチズーム）を無効化 */
-        #drawing-canvas {
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        body {
             touch-action: none;
+            overscroll-behavior: none;
             -webkit-user-select: none;
             user-select: none;
         }
-        /* スムーズなトランジション用 */
-        .color-btn {
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .color-btn.active {
-            transform: scale(1.15);
-            box-shadow: 0 0 0 2px white, 0 0 0 4px #6366f1;
+        .canvas-bg-pattern {
+            background-color: #f3f4f6;
+            background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+            background-size: 20px 20px;
         }
     </style>
 </head>
-<body class="bg-[#fafafa] overflow-hidden h-screen w-screen flex flex-col font-sans select-none text-slate-800">
+<body class="bg-gray-50 h-[100dvh] w-screen overflow-hidden flex flex-col relative font-sans text-gray-800">
 
-    <!-- Header -->
-    <header class="flex items-center justify-between p-4 border-b border-gray-100 shadow-sm z-10 bg-white shrink-0">
-        <div class="flex items-center gap-3">
-            <div class="w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-[1.25rem] flex items-center justify-center text-white shadow-md">
-               <i data-lucide="cloud" class="w-6 h-6"></i>
-            </div>
-            <div>
-                <h1 class="text-2xl font-bold text-indigo-700 leading-tight">Canvas</h1>
-            </div>
+<!-- ヘッダー -->
+<header class="ui-element flex-none h-[68px] w-full flex justify-between items-center px-4 bg-white/95 backdrop-blur z-20 border-b border-gray-200 shadow-sm">
+    <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#9b8af4] to-[#6b45f9] flex items-center justify-center shadow-[0_4px_10px_rgba(107,69,249,0.3)]">
+            <i data-lucide="cloud" class="w-6 h-6 text-white stroke-[2.5]"></i>
         </div>
-        <div class="flex items-center gap-3">
-            <!-- 画像追加ボタン -->
-            <button id="add-image-btn" class="w-11 h-11 rounded-full border border-gray-200 bg-white text-slate-700 flex items-center justify-center hover:bg-slate-50 transition shadow-sm" title="画像を挿入">
-                <i data-lucide="image" class="w-5 h-5"></i>
+        <h1 class="text-[#4338ca] font-extrabold text-xl tracking-tight">Canvas</h1>
+    </div>
+    <div class="flex items-center gap-3">
+        <button id="btn-reset-zoom" class="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition" title="ズームリセット">
+            <i data-lucide="maximize" class="w-4 h-4"></i>
+        </button>
+        <button id="btn-image" class="w-11 h-11 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition relative overflow-hidden bg-white">
+            <i data-lucide="image" class="w-5 h-5"></i>
+            <input type="file" id="image-upload" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+        </button>
+        <button id="btn-download" class="w-11 h-11 rounded-full bg-[#171a2b] flex items-center justify-center text-white hover:bg-gray-800 transition shadow-lg">
+            <i data-lucide="download" class="w-5 h-5"></i>
+        </button>
+    </div>
+</header>
+
+<!-- ビューポート -->
+<main id="viewport" class="flex-grow relative w-full overflow-hidden canvas-bg-pattern cursor-crosshair">
+    <div id="canvas-container" class="absolute top-0 left-0 bg-white shadow-xl origin-top-left" style="will-change: transform;">
+        <canvas id="drawing-canvas" class="block w-full h-full"></canvas>
+    </div>
+
+    <div class="ui-element absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10">
+        <button id="btn-undo" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-400 hover:text-gray-600 transition disabled:opacity-40 border border-gray-100">
+            <i data-lucide="undo-2" class="w-5 h-5"></i>
+        </button>
+        <button id="btn-redo" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-400 hover:text-gray-600 transition disabled:opacity-40 border border-gray-100">
+            <i data-lucide="redo-2" class="w-5 h-5"></i>
+        </button>
+        <button id="btn-clear" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-red-500 hover:bg-red-50 transition mt-2 border border-red-100">
+            <i data-lucide="trash-2" class="w-5 h-5"></i>
+        </button>
+    </div>
+</main>
+
+<!-- 下部ツールバー -->
+<div class="ui-element absolute bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.12)] p-1.5 z-20 w-[92vw] max-w-[500px] border border-gray-100 flex items-center relative">
+
+    <!-- 太さ選択ポップアップ (位置を調整) -->
+    <div id="thickness-popup" class="hidden absolute bottom-[calc(100%+16px)] left-3 bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.15)] p-1.5 flex gap-1 border border-gray-100 z-30">
+        <button class="thickness-btn w-10 h-10 flex items-center justify-center rounded-xl bg-white hover:bg-gray-100 transition-colors" data-size="small">
+            <div class="bg-gray-700 rounded-full w-1.5 h-1.5 pointer-events-none"></div>
+        </button>
+        <button class="thickness-btn w-10 h-10 flex items-center justify-center rounded-xl bg-white hover:bg-gray-100 transition-colors" data-size="medium">
+            <div class="bg-gray-700 rounded-full w-3.5 h-3.5 pointer-events-none"></div>
+        </button>
+        <button class="thickness-btn w-10 h-10 flex items-center justify-center rounded-xl bg-white hover:bg-gray-100 transition-colors" data-size="large">
+            <div class="bg-gray-700 rounded-full w-6 h-6 pointer-events-none"></div>
+        </button>
+        <!-- 吹き出しの尻尾 -->
+        <div id="popup-arrow" class="absolute -bottom-1.5 w-3 h-3 bg-white rotate-45 border-b border-r border-gray-100 transition-all duration-200" style="left: 1.5rem;"></div>
+    </div>
+
+    <div class="flex items-center overflow-x-auto no-scrollbar w-full px-1">
+        <div class="flex items-center gap-1 bg-[#f4f5f7] rounded-[1.5rem] p-1 shrink-0 mr-3 relative">
+            <button id="tool-pen" class="p-2.5 rounded-[1.2rem] bg-white shadow-sm text-[#5b3ced] transition-all duration-200">
+                <i data-lucide="pen-line" class="w-5 h-5 pointer-events-none"></i>
             </button>
-            <input type="file" id="image-upload" accept="image/*" class="hidden">
-            
-            <!-- ダウンロードボタン -->
-            <button id="download-btn" class="w-11 h-11 rounded-full bg-[#111827] text-white flex items-center justify-center hover:bg-slate-800 transition shadow-md" title="画像として保存">
-                <i data-lucide="download" class="w-5 h-5"></i>
+            <button id="tool-eraser" class="p-2.5 rounded-[1.2rem] bg-transparent text-gray-400 hover:text-gray-600 transition-all duration-200">
+                <i data-lucide="eraser" class="w-5 h-5 pointer-events-none"></i>
             </button>
         </div>
-    </header>
+        <div class="w-px h-8 bg-gray-200 shrink-0 mr-3"></div>
+        <div class="flex items-center gap-3 shrink-0 py-2 pr-2" id="color-palette"></div>
+    </div>
+</div>
 
-    <!-- Main Workspace -->
-    <main class="flex-1 relative overflow-hidden bg-[#ffffff]" id="canvas-container">
-        
-        <!-- Canvas -->
-        <canvas id="drawing-canvas" class="absolute top-0 left-0 w-full h-full cursor-crosshair"></canvas>
-
-        <!-- Right Side Floating Action Buttons -->
-        <div class="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10">
-            <button id="undo-btn" class="w-12 h-12 bg-white rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.08)] flex items-center justify-center text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition border border-gray-100 disabled:opacity-40 disabled:hover:text-slate-600 disabled:cursor-not-allowed">
-                <i data-lucide="undo" class="w-5 h-5"></i>
-            </button>
-            <button id="redo-btn" class="w-12 h-12 bg-white rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.08)] flex items-center justify-center text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition border border-gray-100 disabled:opacity-40 disabled:hover:text-slate-600 disabled:cursor-not-allowed">
-                <i data-lucide="redo" class="w-5 h-5"></i>
-            </button>
-            <button id="clear-btn" class="w-12 h-12 bg-white rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.08)] flex items-center justify-center text-red-500 hover:bg-red-50 transition border border-gray-100 mt-2">
-                <i data-lucide="trash-2" class="w-5 h-5"></i>
-            </button>
-        </div>
-
-        <!-- Bottom Toolbar -->
-        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100 p-2.5 flex items-center gap-4 z-10 w-max max-w-[90vw] overflow-x-auto">
-            
-            <!-- Tools -->
-            <div class="flex items-center gap-1 bg-slate-100/80 p-1 rounded-full border border-slate-200/50">
-                <button id="tool-pen" class="w-10 h-10 rounded-full flex items-center justify-center bg-white text-indigo-600 shadow-sm transition">
-                    <i data-lucide="pen" class="w-5 h-5"></i>
-                </button>
-                <button id="tool-eraser" class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-800 transition">
-                    <i data-lucide="eraser" class="w-5 h-5"></i>
-                </button>
-            </div>
-            
-            <div class="w-px h-8 bg-gray-200 shrink-0"></div>
-
-            <!-- Color Palette -->
-            <div class="flex items-center gap-2.5 px-2 shrink-0" id="color-palette">
-                <!-- Colors injected by JS -->
-            </div>
-        </div>
-    </main>
-
-    <script>
-        // --- 初期化 ---
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
         lucide.createIcons();
 
-        const canvas = document.getElementById('drawing-canvas');
-        const ctx = canvas.getContext('2d');
+        const viewport = document.getElementById('viewport');
         const container = document.getElementById('canvas-container');
-        let dpr = window.devicePixelRatio || 1;
+        const canvas = document.getElementById('drawing-canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-        // --- 状態管理 ---
-        let elements = []; // { type: 'path', color, width, points, isEraser } または { type: 'image', img, x, y, width, height }
-        let history = [[]];
-        let historyStep = 0;
-        
-        let currentStroke = null;
-        let isDrawing = false;
-        let mode = 'draw'; // 'draw' | 'erase'
-        let currentColor = '#1e293b'; // デフォルト黒
-        const strokeWidth = 4;
-        const eraserWidth = 24;
-
-        // パン・ズーム（二本指操作）の状態
-        let transform = { x: 0, y: 0, scale: 1 };
-        let isPanning = false;
-        let lastPinchDist = 0;
-        let lastPanPoint = { x: 0, y: 0 };
-        const activePointers = new Map();
-
-        // --- カラーパレットのセットアップ ---
-        const colors = ['#1e293b', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
-        const paletteContainer = document.getElementById('color-palette');
-        
-        colors.forEach(color => {
-            const btn = document.createElement('button');
-            btn.className = `w-8 h-8 rounded-full color-btn shrink-0`;
-            btn.style.backgroundColor = color;
-            if (color === currentColor) btn.classList.add('active');
-            
-            btn.addEventListener('click', () => {
-                currentColor = color;
-                mode = 'draw';
-                updateToolbarUI();
-            });
-            paletteContainer.appendChild(btn);
-        });
-
-        // --- リサイズ処理 ---
-        function resizeCanvas() {
-            // コンテナの実際の表示サイズを取得
-            const rect = container.getBoundingClientRect();
-            
-            // 0サイズの場合はスキップ
-            if (rect.width <= 0 || rect.height <= 0) {
-                console.warn('[Canvas Resize] Skipped: zero dimensions', rect.width, 'x', rect.height);
-                return;
-            }
-    
-            // 表示サイズ（CSS）と内部解像度（Attribute）を一致させる
-            // 高解像度ディスプレイ(DPR)対応
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
-
-            // 表示上のサイズを固定（ずれ防止）
-            canvas.style.width = `${rect.width}px`;
-            canvas.style.height = `${rect.height}px`;
-            
-            console.log('[Canvas Resized] Internal:', canvas.width, 'x', canvas.height, 'Display:', rect.width, 'x', rect.height);
-
-            drawAll();
-        }
-
-        // 親要素のサイズ変更を検知してリサイズを実行
-        const resizeObserver = new ResizeObserver(() => {
-            resizeCanvas();
-        });
-        resizeObserver.observe(container);
-        
-        // WebView対応: ResizeObserverが実行されない場合のフォールバック
-        function initializeCanvas() {
-            console.log('[Canvas Init] container:', container.clientWidth, 'x', container.clientHeight, 'DPR:', dpr);
-            resizeCanvas();
-        }
-        
-        // ページ読み込み完了後にキャンバス初期化
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeCanvas);
-        } else {
-            initializeCanvas();
-        }
-        
-        // Tailwind CSS等の外部リソース完全読み込み後に再度リサイズ
-        window.addEventListener('load', () => {
-            console.log('[Canvas Load] Recheck: container:', container.clientWidth, 'x', container.clientHeight);
-            resizeCanvas();
-        });
-        
-        // デバイス回転対応: DPRとサイズの再計算
-        window.addEventListener('orientationchange', () => {
-            // 回転完了を待つ
-            setTimeout(() => {
-                dpr = window.devicePixelRatio || 1;
-                console.log('[Orientation Change] New DPR:', dpr);
-                resizeCanvas();
-            }, 100);
-        });
-        
-
-        // --- 描画ロジック ---
-        function getLogicalPos(clientX, clientY) {
-            const rect = canvas.getBoundingClientRect();
-            const x = clientX - rect.left;
-            const y = clientY - rect.top;
-            // DPR正規化: タッチ座標（表示座標）をキャンバス内部座標に変換
-            return {
-                x: (x / dpr - transform.x) / transform.scale,
-                y: (y / dpr - transform.y) / transform.scale
-            };
-        }
-
-        function drawElement(el) {
-            if (el.type === 'path') {
-                if (el.points.length === 0) return;
-                
-                ctx.beginPath();
-                ctx.moveTo(el.points[0].x, el.points[0].y);
-                
-                // 曲線を滑らかにする処理
-                if (el.points.length > 2) {
-                    for (let i = 1; i < el.points.length - 1; i++) {
-                        const xc = (el.points[i].x + el.points[i + 1].x) / 2;
-                        const yc = (el.points[i].y + el.points[i + 1].y) / 2;
-                        ctx.quadraticCurveTo(el.points[i].x, el.points[i].y, xc, yc);
-                    }
-                    ctx.lineTo(el.points[el.points.length - 1].x, el.points[el.points.length - 1].y);
-                } else {
-                    ctx.lineTo(el.points[el.points.length - 1].x, el.points[el.points.length - 1].y);
-                }
-
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-                ctx.lineWidth = el.isEraser ? eraserWidth : el.width;
-                ctx.strokeStyle = el.color;
-
-                if (el.isEraser) {
-                    // 消しゴムの場合は描画内容をくり抜く
-                    ctx.globalCompositeOperation = 'destination-out';
-                    ctx.strokeStyle = 'rgba(0,0,0,1)';
-                } else {
-                    ctx.globalCompositeOperation = 'source-over';
-                }
-                ctx.stroke();
-                
-            } else if (el.type === 'image') {
-                ctx.globalCompositeOperation = 'source-over';
-                ctx.drawImage(el.img, el.x, el.y, el.width, el.height);
-            }
-        }
-
-        function drawAll() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.save();
-            ctx.scale(dpr, dpr);
-            ctx.translate(transform.x, transform.y);
-            ctx.scale(transform.scale, transform.scale);
-
-            for (const el of elements) {
-                drawElement(el);
-            }
-            if (currentStroke) {
-                drawElement(currentStroke);
-            }
-
-            ctx.restore();
-        }
-
-        // --- 入力イベントハンドリング (Pointer Events) ---
-        canvas.addEventListener('pointerdown', (e) => {
-            activePointers.set(e.pointerId, e);
-            
-            if (activePointers.size === 1) {
-                // 1本指: 描画開始
-                const pos = getLogicalPos(e.clientX, e.clientY);
-                isDrawing = true;
-                currentStroke = {
-                    type: 'path',
-                    color: currentColor,
-                    width: strokeWidth,
-                    isEraser: mode === 'erase',
-                    points: [pos]
-                };
-                canvas.setPointerCapture(e.pointerId);
-            } else if (activePointers.size === 2) {
-                // 2本指: パン＆ズーム開始
-                isDrawing = false;
-                currentStroke = null;
-                isPanning = true;
-                
-                const pts = Array.from(activePointers.values());
-                lastPinchDist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
-                lastPanPoint = {
-                    x: (pts[0].clientX + pts[1].clientX) / 2,
-                    y: (pts[0].clientY + pts[1].clientY) / 2
-                };
-            }
-        });
-
-        canvas.addEventListener('pointermove', (e) => {
-            if (!activePointers.has(e.pointerId)) return;
-            activePointers.set(e.pointerId, e);
-
-            if (activePointers.size === 1 && isDrawing) {
-                // 描画の更新
-                const pos = getLogicalPos(e.clientX, e.clientY);
-                currentStroke.points.push(pos);
-                drawAll(); // パフォーマンス最適化のためには差分描画が良いが、今回はシンプルに全描画
-                
-            } else if (activePointers.size === 2 && isPanning) {
-                // パン＆ズームの更新
-                const pts = Array.from(activePointers.values());
-                const currentDist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
-                const currentCenter = {
-                    x: (pts[0].clientX + pts[1].clientX) / 2,
-                    y: (pts[0].clientY + pts[1].clientY) / 2
-                };
-
-                // スケール計算
-                const deltaScale = currentDist / (lastPinchDist || 1);
-                const newScale = Math.min(Math.max(transform.scale * deltaScale, 0.2), 10); // 制限: 0.2倍 〜 10倍
-                const actualDeltaScale = newScale / transform.scale;
-
-                // ズーム中心を基点にした位置調整
-                const rect = canvas.getBoundingClientRect();
-                const centerX = currentCenter.x - rect.left;
-                const centerY = currentCenter.y - rect.top;
-
-                transform.x = centerX - (centerX - transform.x) * actualDeltaScale + (currentCenter.x - lastPanPoint.x);
-                transform.y = centerY - (centerY - transform.y) * actualDeltaScale + (currentCenter.y - lastPanPoint.y);
-                transform.scale = newScale;
-
-                lastPinchDist = currentDist;
-                lastPanPoint = currentCenter;
-                drawAll();
-            }
-        });
-
-        function handlePointerEnd(e) {
-            activePointers.delete(e.pointerId);
-            
-            if (activePointers.size === 0) {
-                // すべての指が離れた
-                if (isDrawing && currentStroke) {
-                    elements.push(currentStroke);
-                    currentStroke = null;
-                    saveHistory();
-                }
-                isDrawing = false;
-                isPanning = false;
-            } else {
-                // 片方の指が離れた場合も安全のため操作を中断
-                isDrawing = false;
-                isPanning = false;
-                currentStroke = null;
-                drawAll();
-            }
-        }
-
-        canvas.addEventListener('pointerup', handlePointerEnd);
-        canvas.addEventListener('pointercancel', handlePointerEnd);
-        canvas.addEventListener('pointerleave', handlePointerEnd);
-
-        // マウスホイールでのズーム・パン
-        canvas.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            if (e.ctrlKey) {
-                // ズーム
-                const zoomFactor = 1.05;
-                const delta = e.deltaY > 0 ? 1/zoomFactor : zoomFactor;
-                const newScale = Math.min(Math.max(transform.scale * delta, 0.2), 10);
-                const actualDelta = newScale / transform.scale;
-
-                const rect = canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-
-                transform.x = x - (x - transform.x) * actualDelta;
-                transform.y = y - (y - transform.y) * actualDelta;
-                transform.scale = newScale;
-            } else {
-                // パン
-                transform.x -= e.deltaX;
-                transform.y -= e.deltaY;
-            }
-            drawAll();
-        }, { passive: false });
-
-        // --- 履歴管理 (Undo / Redo) ---
-        function saveHistory() {
-            history = history.slice(0, historyStep + 1);
-            history.push([...elements]);
-            historyStep++;
-            updateUI();
-        }
-
-        document.getElementById('undo-btn').addEventListener('click', () => {
-            if (historyStep > 0) {
-                historyStep--;
-                elements = [...history[historyStep]];
-                drawAll();
-                updateUI();
-            }
-        });
-
-        document.getElementById('redo-btn').addEventListener('click', () => {
-            if (historyStep < history.length - 1) {
-                historyStep++;
-                elements = [...history[historyStep]];
-                drawAll();
-                updateUI();
-            }
-        });
-
-        document.getElementById('clear-btn').addEventListener('click', () => {
-            if (elements.length > 0) {
-                elements = [];
-                drawAll();
-                saveHistory();
-            }
-        });
-
-        // --- UIの更新 ---
         const toolPen = document.getElementById('tool-pen');
         const toolEraser = document.getElementById('tool-eraser');
+        const btnUndo = document.getElementById('btn-undo');
+        const btnRedo = document.getElementById('btn-redo');
+        const btnClear = document.getElementById('btn-clear');
+        const btnDownload = document.getElementById('btn-download');
+        const btnResetZoom = document.getElementById('btn-reset-zoom');
+        const imageUpload = document.getElementById('image-upload');
+        const colorPalette = document.getElementById('color-palette');
 
-        function updateToolbarUI() {
-            // ツールの状態更新
-            if (mode === 'draw') {
-                toolPen.className = "w-10 h-10 rounded-full flex items-center justify-center bg-white text-indigo-600 shadow-sm transition";
-                toolEraser.className = "w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-800 transition";
-            } else {
-                toolEraser.className = "w-10 h-10 rounded-full flex items-center justify-center bg-white text-indigo-600 shadow-sm transition";
-                toolPen.className = "w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-800 transition";
-            }
+        const thicknessPopup = document.getElementById('thickness-popup');
+        const thicknessBtns = document.querySelectorAll('.thickness-btn');
+        const popupArrow = document.getElementById('popup-arrow');
 
-            // カラーパレットの状態更新
-            document.querySelectorAll('.color-btn').forEach(btn => {
-                if (btn.style.backgroundColor === currentColor || btn.style.backgroundColor === hexToRgb(currentColor)) {
-                    btn.classList.add('active');
+        // --- 状態管理 ---
+        let currentTool = 'pen';
+        let currentColor = '#1e293b';
+
+        const penWidths = { small: 2, medium: 6, large: 14 };
+        const eraserWidths = { small: 15, medium: 40, large: 80 };
+        let currentPenSize = 'medium';
+        let currentEraserSize = 'medium';
+
+        let undoStack = [];
+        let redoStack = [];
+
+        let panZoom = { x: 0, y: 0, scale: 1 };
+        let isDrawing = false;
+        let isPanning = false;
+        let panStart = { x: 0, y: 0 };
+
+        // 滑らかな描画のための座標履歴
+        let pts = [];
+
+        const pointers = new Map();
+        let pinchStartDist = 0;
+        let pinchStartCenter = { x: 0, y: 0 };
+        let pinchStartPanZoom = null;
+        let activeStrokeBackup = null;
+
+        const colors = [
+            '#1e293b', '#ef4444', '#f97316', '#eab308', '#22c55e',
+            '#3b82f6', '#a855f7', '#ec4899', '#8b5cf6', '#14b8a6'
+        ];
+
+        viewport.addEventListener('contextmenu', e => e.preventDefault());
+
+        // --------------------------------------------------
+        // 太さUIとツール切り替え
+        // --------------------------------------------------
+        function updateThicknessUI() {
+            const currentSize = currentTool === 'pen' ? currentPenSize : currentEraserSize;
+            thicknessBtns.forEach(btn => {
+                if (btn.dataset.size === currentSize) {
+                    btn.classList.add('bg-gray-200');
+                    btn.classList.remove('bg-white', 'hover:bg-gray-100');
                 } else {
-                    btn.classList.remove('active');
+                    btn.classList.remove('bg-gray-200');
+                    btn.classList.add('bg-white', 'hover:bg-gray-100');
                 }
             });
         }
 
-        function updateUI() {
-            // Undo/Redoボタンの活性化
-            document.getElementById('undo-btn').disabled = historyStep === 0;
-            document.getElementById('redo-btn').disabled = historyStep === history.length - 1;
+        function setTool(tool, forceHidePopup = false) {
+            if (currentTool === tool && !forceHidePopup) {
+                thicknessPopup.classList.toggle('hidden');
+                popupArrow.style.left = tool === 'pen' ? '1.5rem' : '4.25rem';
+                updateThicknessUI();
+                return;
+            }
+
+            currentTool = tool;
+            thicknessPopup.classList.add('hidden');
+
+            if (tool === 'pen') {
+                toolPen.classList.remove('text-gray-400', 'bg-transparent');
+                toolPen.classList.add('text-[#5b3ced]', 'bg-white', 'shadow-sm');
+
+                toolEraser.classList.remove('text-[#5b3ced]', 'bg-white', 'shadow-sm');
+                toolEraser.classList.add('text-gray-400', 'bg-transparent');
+            } else {
+                toolEraser.classList.remove('text-gray-400', 'bg-transparent');
+                toolEraser.classList.add('text-[#5b3ced]', 'bg-white', 'shadow-sm');
+
+                toolPen.classList.remove('text-[#5b3ced]', 'bg-white', 'shadow-sm');
+                toolPen.classList.add('text-gray-400', 'bg-transparent');
+            }
         }
 
-        toolPen.addEventListener('click', () => { mode = 'draw'; updateToolbarUI(); });
-        toolEraser.addEventListener('click', () => { mode = 'erase'; updateToolbarUI(); });
-
-        // --- 画像挿入機能 ---
-        const imageUpload = document.getElementById('image-upload');
-        document.getElementById('add-image-btn').addEventListener('click', () => imageUpload.click());
-        
-        imageUpload.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const img = new Image();
-                img.onload = () => {
-                    // キャンバスの中央に表示されるようにサイズ調整
-                    const maxWidth = container.clientWidth * 0.6;
-                    const scale = Math.min(1, maxWidth / img.width);
-                    const w = img.width * scale;
-                    const h = img.height * scale;
-                    
-                    const centerX = container.clientWidth / 2;
-                    const centerY = container.clientHeight / 2;
-                    const logicalPos = getLogicalPos(centerX, centerY);
-
-                    elements.push({
-                        type: 'image',
-                        img: img,
-                        x: logicalPos.x - w / 2,
-                        y: logicalPos.y - h / 2,
-                        width: w,
-                        height: h
-                    });
-                    
-                    saveHistory();
-                    drawAll();
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-            e.target.value = ''; // 同じ画像を再度選べるようにリセット
+        thicknessBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const size = btn.dataset.size;
+                if (currentTool === 'pen') {
+                    currentPenSize = size;
+                } else {
+                    currentEraserSize = size;
+                }
+                updateThicknessUI();
+                setTimeout(() => thicknessPopup.classList.add('hidden'), 150);
+            });
         });
 
-        // --- ダウンロード機能 ---
-        document.getElementById('download-btn').addEventListener('click', () => {
-            // 背景が白の画像を作成するためのオフスクリーンキャンバス
-            const offscreen = document.createElement('canvas');
-            offscreen.width = canvas.width;
-            offscreen.height = canvas.height;
-            const offCtx = offscreen.getContext('2d');
+        toolPen.addEventListener('click', () => setTool('pen'));
+        toolEraser.addEventListener('click', () => setTool('eraser'));
 
-            // 白背景を塗る
-            offCtx.fillStyle = '#ffffff';
-            offCtx.fillRect(0, 0, offscreen.width, offscreen.height);
+        colors.forEach((color, index) => {
+            const btn = document.createElement('button');
+            btn.className = `w-9 h-9 rounded-full shrink-0 transition-transform hover:scale-110 relative flex justify-center items-center`;
+            btn.style.backgroundColor = color;
 
-            // 現在のキャンバス内容を合成
-            offCtx.drawImage(canvas, 0, 0);
+            const ring = document.createElement('div');
+            ring.className = 'absolute -inset-[3px] rounded-full border-[2.5px] border-[#4338ca] opacity-0 transition-opacity duration-200 pointer-events-none';
+            btn.appendChild(ring);
 
-            // ダウンロードトリガー
+            if (index === 0) {
+                ring.classList.replace('opacity-0', 'opacity-100');
+                btn.classList.add('active-color');
+            }
+
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.active-color').forEach(el => {
+                    el.classList.remove('active-color');
+                    el.querySelector('div').classList.replace('opacity-100', 'opacity-0');
+                });
+                btn.classList.add('active-color');
+                ring.classList.replace('opacity-0', 'opacity-100');
+                currentColor = color;
+                setTool('pen', true);
+            });
+            colorPalette.appendChild(btn);
+        });
+
+        // --------------------------------------------------
+        // 初期化とリサイズ
+        // --------------------------------------------------
+        function initCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            const vpRect = viewport.getBoundingClientRect();
+
+            const logicalWidth = vpRect.width;
+            const logicalHeight = vpRect.height;
+
+            container.style.width = `${logicalWidth}px`;
+            container.style.height = `${logicalHeight}px`;
+
+            canvas.width = logicalWidth * dpr;
+            canvas.height = logicalHeight * dpr;
+
+            ctx.scale(dpr, dpr);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            centerCanvas();
+            saveState();
+        }
+
+        function centerCanvas() {
+            panZoom = { x: 0, y: 0, scale: 1 };
+            updateTransform();
+        }
+
+        function updateTransform() {
+            container.style.transform = `translate(${panZoom.x}px, ${panZoom.y}px) scale(${panZoom.scale})`;
+        }
+
+        function getLogicalPos(clientX, clientY) {
+            const vpRect = viewport.getBoundingClientRect();
+            const xInViewport = clientX - vpRect.left;
+            const yInViewport = clientY - vpRect.top;
+
+            return {
+                x: (xInViewport - panZoom.x) / panZoom.scale,
+                y: (yInViewport - panZoom.y) / panZoom.scale
+            };
+        }
+
+        btnResetZoom.addEventListener('click', centerCanvas);
+
+        // --------------------------------------------------
+        // 滑らかな描画ロジック (二次ベジェ曲線)
+        // --------------------------------------------------
+        function startDrawing(clientX, clientY) {
+            activeStrokeBackup = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            isDrawing = true;
+
+            const pos = getLogicalPos(clientX, clientY);
+            pts = [pos];
+
+            const lineWidth = currentTool === 'eraser' ? eraserWidths[currentEraserSize] : penWidths[currentPenSize];
+
+            // タップしただけの「点」をきれいに丸く描画する
+            ctx.fillStyle = currentTool === 'eraser' ? 'rgba(0,0,0,1)' : currentColor;
+            ctx.globalCompositeOperation = currentTool === 'eraser' ? 'destination-out' : 'source-over';
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, lineWidth / 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawPoint(clientX, clientY) {
+            if (!isDrawing) return;
+            const pos = getLogicalPos(clientX, clientY);
+            pts.push(pos);
+
+            const lineWidth = currentTool === 'eraser' ? eraserWidths[currentEraserSize] : penWidths[currentPenSize];
+            ctx.lineWidth = lineWidth;
+            ctx.strokeStyle = currentTool === 'eraser' ? 'rgba(0,0,0,1)' : currentColor;
+            ctx.globalCompositeOperation = currentTool === 'eraser' ? 'destination-out' : 'source-over';
+
+            // 点が3つ以上集まったら、中間点をコントロールポイントとして曲線を引く
+            if (pts.length >= 3) {
+                const p0 = pts[pts.length - 3];
+                const p1 = pts[pts.length - 2];
+                const p2 = pts[pts.length - 1];
+
+                const mid1 = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
+                const mid2 = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+
+                ctx.beginPath();
+                ctx.moveTo(mid1.x, mid1.y);
+                ctx.quadraticCurveTo(p1.x, p1.y, mid2.x, mid2.y);
+                ctx.stroke();
+            }
+        }
+
+        function stopDrawing() {
+            if (isDrawing) {
+                const lineWidth = currentTool === 'eraser' ? eraserWidths[currentEraserSize] : penWidths[currentPenSize];
+                ctx.lineWidth = lineWidth;
+                ctx.strokeStyle = currentTool === 'eraser' ? 'rgba(0,0,0,1)' : currentColor;
+                ctx.globalCompositeOperation = currentTool === 'eraser' ? 'destination-out' : 'source-over';
+
+                // 最後に残った端点をつなぐ
+                if (pts.length === 2) {
+                    ctx.beginPath();
+                    ctx.moveTo(pts[0].x, pts[0].y);
+                    ctx.lineTo(pts[1].x, pts[1].y);
+                    ctx.stroke();
+                } else if (pts.length >= 3) {
+                    const p1 = pts[pts.length - 2];
+                    const p2 = pts[pts.length - 1];
+                    const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+                    ctx.beginPath();
+                    ctx.moveTo(mid.x, mid.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+                }
+
+                isDrawing = false;
+                pts = [];
+                saveState();
+            }
+            activeStrokeBackup = null;
+        }
+
+        // --------------------------------------------------
+        // ポインターイベント
+        // --------------------------------------------------
+        viewport.addEventListener('pointerdown', (e) => {
+            if (!e.target.closest('#thickness-popup') && !e.target.closest('#tool-pen') && !e.target.closest('#tool-eraser')) {
+                thicknessPopup.classList.add('hidden');
+            }
+
+            if (e.target.closest('.ui-element')) return;
+
+            viewport.setPointerCapture(e.pointerId);
+            pointers.set(e.pointerId, e);
+
+            if (pointers.size === 1) {
+                if (e.button === 1 || e.button === 2 || e.shiftKey) {
+                    isPanning = true;
+                    panStart = { x: e.clientX - panZoom.x, y: e.clientY - panZoom.y };
+                    viewport.style.cursor = 'grabbing';
+                } else {
+                    viewport.style.cursor = 'crosshair';
+                    startDrawing(e.clientX, e.clientY);
+                }
+            } else if (pointers.size === 2) {
+                if (isDrawing) {
+                    isDrawing = false;
+                    pts = []; // リセット
+                    if (activeStrokeBackup) {
+                        ctx.putImageData(activeStrokeBackup, 0, 0);
+                        activeStrokeBackup = null;
+                    }
+                }
+                isPanning = false;
+
+                const p = Array.from(pointers.values());
+                pinchStartDist = Math.hypot(p[0].clientX - p[1].clientX, p[0].clientY - p[1].clientY);
+                pinchStartCenter = { x: (p[0].clientX + p[1].clientX) / 2, y: (p[0].clientY + p[1].clientY) / 2 };
+                pinchStartPanZoom = { ...panZoom };
+            }
+        });
+
+        viewport.addEventListener('pointermove', (e) => {
+            if (!pointers.has(e.pointerId)) return;
+            pointers.set(e.pointerId, e);
+
+            if (pointers.size === 1) {
+                if (isPanning) {
+                    panZoom.x = e.clientX - panStart.x;
+                    panZoom.y = e.clientY - panStart.y;
+                    updateTransform();
+                } else if (isDrawing) {
+                    const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+                    for (const ev of events) {
+                        drawPoint(ev.clientX, ev.clientY);
+                    }
+                }
+            } else if (pointers.size === 2) {
+                const p = Array.from(pointers.values());
+                const currentDist = Math.hypot(p[0].clientX - p[1].clientX, p[0].clientY - p[1].clientY);
+                const currentCenter = { x: (p[0].clientX + p[1].clientX) / 2, y: (p[0].clientY + p[1].clientY) / 2 };
+
+                const vpRect = viewport.getBoundingClientRect();
+                const scaleDelta = currentDist / pinchStartDist;
+                let newScale = pinchStartPanZoom.scale * scaleDelta;
+                newScale = Math.max(0.1, Math.min(newScale, 10));
+
+                const pinchStartCenterVpX = pinchStartCenter.x - vpRect.left;
+                const pinchStartCenterVpY = pinchStartCenter.y - vpRect.top;
+
+                const logicalCenterX = (pinchStartCenterVpX - pinchStartPanZoom.x) / pinchStartPanZoom.scale;
+                const logicalCenterY = (pinchStartCenterVpY - pinchStartPanZoom.y) / pinchStartPanZoom.scale;
+
+                const currentCenterVpX = currentCenter.x - vpRect.left;
+                const currentCenterVpY = currentCenter.y - vpRect.top;
+
+                const newX = currentCenterVpX - logicalCenterX * newScale;
+                const newY = currentCenterVpY - logicalCenterY * newScale;
+
+                panZoom.scale = newScale;
+                panZoom.x = newX;
+                panZoom.y = newY;
+                updateTransform();
+            }
+        });
+
+        const handlePointerUp = (e) => {
+            pointers.delete(e.pointerId);
+            if (pointers.size < 2) pinchStartDist = 0;
+
+            if (pointers.size === 0) {
+                stopDrawing();
+                if (isPanning) {
+                    isPanning = false;
+                    viewport.style.cursor = 'crosshair';
+                }
+            }
+        };
+
+        viewport.addEventListener('pointerup', handlePointerUp);
+        viewport.addEventListener('pointercancel', handlePointerUp);
+
+        viewport.addEventListener('wheel', (e) => {
+            if (e.target.closest('.ui-element')) return;
+            e.preventDefault();
+
+            const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
+            let newScale = panZoom.scale * zoomDelta;
+            newScale = Math.max(0.1, Math.min(newScale, 10));
+
+            const vpRect = viewport.getBoundingClientRect();
+            const pointerX = e.clientX - vpRect.left;
+            const pointerY = e.clientY - vpRect.top;
+
+            const logicalX = (pointerX - panZoom.x) / panZoom.scale;
+            const logicalY = (pointerY - panZoom.y) / panZoom.scale;
+
+            panZoom.x = pointerX - logicalX * newScale;
+            panZoom.y = pointerY - logicalY * newScale;
+            panZoom.scale = newScale;
+
+            updateTransform();
+        }, { passive: false });
+
+        // --------------------------------------------------
+        // 履歴・ファイル操作など
+        // --------------------------------------------------
+        function saveState() {
+            undoStack.push(canvas.toDataURL());
+            redoStack = [];
+            btnUndo.disabled = undoStack.length <= 1;
+            btnRedo.disabled = true;
+        }
+
+        function restoreState(dataUrl) {
+            const img = new Image();
+            img.onload = () => {
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+                ctx.restore();
+            };
+            img.src = dataUrl;
+        }
+
+        btnUndo.addEventListener('click', () => {
+            if (undoStack.length > 1) {
+                redoStack.push(undoStack.pop());
+                restoreState(undoStack[undoStack.length - 1]);
+                btnUndo.disabled = undoStack.length <= 1;
+                btnRedo.disabled = false;
+            }
+        });
+
+        btnRedo.addEventListener('click', () => {
+            if (redoStack.length > 0) {
+                const state = redoStack.pop();
+                undoStack.push(state);
+                restoreState(state);
+                btnUndo.disabled = false;
+                btnRedo.disabled = redoStack.length === 0;
+            }
+        });
+
+        btnClear.addEventListener('click', () => {
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
+            saveState();
+        });
+
+        btnDownload.addEventListener('click', () => {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tCtx = tempCanvas.getContext('2d');
+
+            tCtx.fillStyle = '#ffffff';
+            tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            tCtx.drawImage(canvas, 0, 0);
+
             const link = document.createElement('a');
-            link.download = `sync-memo-${new Date().getTime()}.png`;
-            link.href = offscreen.toDataURL('image/png');
+            link.download = 'canvas-drawing.png';
+            link.href = tempCanvas.toDataURL('image/png');
             link.click();
         });
 
-        // ユーティリティ: HEXからRGBへの変換 (TailwindがRGBで返す場合があるため)
-        function hexToRgb(hex) {
-            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            return result ? `rgb(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)})` : null;
-        }
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const logicalWidth = container.offsetWidth;
+                        const logicalHeight = container.offsetHeight;
 
-        // 初期UIのセットアップ
-        updateUI();
-        updateToolbarUI();
+                        const scale = Math.min(
+                            (logicalWidth * 0.8) / img.width,
+                            (logicalHeight * 0.8) / img.height
+                        );
+                        const x = (logicalWidth / 2) - (img.width * scale / 2);
+                        const y = (logicalHeight / 2) - (img.height * scale / 2);
 
-    </script>
+                        ctx.globalCompositeOperation = 'source-over';
+                        ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+                        saveState();
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+            e.target.value = '';
+        });
+
+        window.addEventListener('resize', () => {
+            const oldState = undoStack.length > 0 ? undoStack[undoStack.length - 1] : null;
+            initCanvas();
+            if (oldState) restoreState(oldState);
+        });
+
+        // 初期化実行
+        setTool('pen', true);
+        initCanvas();
+    });
+</script>
 </body>
 </html>
